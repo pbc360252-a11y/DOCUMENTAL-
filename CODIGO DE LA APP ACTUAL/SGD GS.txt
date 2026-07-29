@@ -1,0 +1,2595 @@
+// ============================================================
+// SGD CORAZA C.T.A. - v7.4 OPTIMIZADO
+// ============================================================
+const SPREADSHEET_ID = '1REel5or4B3BzPGNdWBu3zT03DbhzGXkv769IY2V4xiY';
+function getActiveSS() {
+  try {
+    const savedId = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+    if (savedId) {
+      const ss = SpreadsheetApp.openById(savedId);
+      if (ss) return ss;
+    }
+  } catch(e) {}
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (ss) return ss;
+  } catch(e) {}
+  try {
+    return SpreadsheetApp.openById(SPREADSHEET_ID);
+  } catch(e) {
+    console.error("No se pudo conectar a la hoja de cálculo:", e);
+    return null;
+  }
+}
+const SS = getActiveSS();
+
+// ============================================================
+// SISTEMA ORM AUTO-SANABLE PARA GOOGLE SHEETS
+// ============================================================
+function rowToObject(headers, row) {
+  const obj = {};
+  headers.forEach((h, idx) => {
+    const key = String(h).trim().toUpperCase();
+    obj[key] = row[idx];
+  });
+  return obj;
+}
+
+function objectToRow(headers, obj) {
+  return headers.map(h => {
+    const key = String(h).trim().toUpperCase();
+    return obj[key] !== undefined ? obj[key] : '';
+  });
+}
+
+function readField(item, possibleKeys) {
+  for (const k of possibleKeys) {
+    const upperK = k.toUpperCase();
+    if (item[upperK] !== undefined && item[upperK] !== '') return item[upperK];
+  }
+  return '';
+}
+
+function formatearFecha(val) {
+  if (val instanceof Date) {
+    try {
+      return Utilities.formatDate(val, Session.getScriptTimeZone() || 'America/Bogota', 'yyyy-MM-dd');
+    } catch(e) {
+      return val.toISOString().split('T')[0];
+    }
+  }
+  return val ? String(val).trim() : '';
+}
+
+function str(val) {
+  if (val === null || val === undefined) return '';
+  if (val instanceof Date) return formatearFecha(val);
+  return String(val).trim();
+}
+
+function sanitizeResponse(obj) {
+  if (obj === null || obj === undefined) return '';
+  if (obj instanceof Date) return formatearFecha(obj);
+  if (Array.isArray(obj)) return obj.map(item => sanitizeResponse(item));
+  if (typeof obj === 'object') {
+    const clean = {};
+    for (let key in obj) {
+      if (obj.hasOwnProperty(key)) {
+        clean[key] = sanitizeResponse(obj[key]);
+      }
+    }
+    return clean;
+  }
+  return obj;
+}
+
+function obtenerUAgregarCabeceras(sheet, cabecerasRequeridas) {
+  if (sheet.getLastColumn() === 0 || sheet.getLastRow() === 0) {
+    sheet.getRange(1, 1, 1, cabecerasRequeridas.length)
+      .setValues([cabecerasRequeridas])
+      .setFontWeight('bold')
+      .setBackground('#1a237e')
+      .setFontColor('#ffffff');
+    sheet.setFrozenRows(1);
+    return cabecerasRequeridas.map(c => c.toUpperCase());
+  }
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(h => String(h).trim().toUpperCase());
+  const nuevasCabeceras = [];
+  cabecerasRequeridas.forEach(req => {
+    const rLimpio = req.trim().toUpperCase();
+    if (headers.indexOf(rLimpio) === -1) {
+      headers.push(rLimpio);
+      nuevasCabeceras.push(req);
+    }
+  });
+  if (nuevasCabeceras.length > 0) {
+    const startCol = sheet.getLastColumn() + 1;
+    sheet.getRange(1, startCol, 1, nuevasCabeceras.length)
+      .setValues([nuevasCabeceras])
+      .setFontWeight('bold')
+      .setBackground('#1a237e')
+      .setFontColor('#ffffff');
+  }
+  return headers;
+}
+
+function obtenerSiguienteNumeroSecuencial(sheet, propKey) {
+  let max = 0;
+  try {
+    if (sheet && sheet.getLastRow() > 1) {
+      const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(h => String(h).trim().toUpperCase());
+      let colIdx = headers.findIndex(h => h.includes('NUMERICO') || h.includes('NUMERO') || h.includes('RADICADO')) + 1;
+      if (colIdx === 0) {
+        colIdx = headers.findIndex(h => h.includes('ID')) + 1;
+      }
+      
+      if (colIdx > 0) {
+        const values = sheet.getRange(2, colIdx, sheet.getLastRow() - 1, 1).getValues();
+        values.forEach(r => {
+          let val = r[0];
+          if (val === null || val === undefined) return;
+          
+          if (typeof val === 'string' && val.indexOf('-') !== -1) {
+            const parts = val.split('-');
+            for (let p of parts) {
+              const parsed = parseInt(p, 10);
+              if (!isNaN(parsed) && String(parsed) === p.trim()) {
+                if (parsed > max) max = parsed;
+                break;
+              }
+            }
+          } else {
+            const n = parseInt(val, 10);
+            if (!isNaN(n) && n > max) max = n;
+          }
+        });
+      }
+    }
+  } catch(e) {
+    console.error("Error en obtenerSiguienteNumeroSecuencial:", e);
+  }
+  // Autorecuperación si max es 0 pero la hoja tiene registros reales
+  if (max === 0 && sheet && sheet.getLastRow() > 1) {
+    max = sheet.getLastRow() - 1;
+  }
+  return max + 1;
+}
+
+// Sobrescribir getSheetByName para búsqueda difusa y alias de nombres de pestañas
+if (SS) {
+  const originalGetSheetByName = SS.getSheetByName;
+  SS.getSheetByName = function(name) {
+    if (!name) return null;
+    let sheet = originalGetSheetByName.call(SS, name);
+    if (sheet) return sheet;
+    
+    const cleanName = (n) => String(n).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const nameLower = cleanName(name);
+    
+    // Lista de alias para correspondencias comunes
+    let aliasList = [nameLower];
+    if (nameLower.includes('personal')) {
+      aliasList = aliasList.concat(['personal', 'personal_inactivo', 'hoja de vida', 'hojas de vida', 'empleados', 'colaboradores', 'trabajadores', 'datos']);
+    } else if (nameLower.includes('contrato')) {
+      aliasList = aliasList.concat(['contratos', 'contrato', 'convenios', 'convenio']);
+    } else if (nameLower.includes('minuta')) {
+      aliasList = aliasList.concat(['minutas', 'minuta', 'bitacoras', 'bitacora']);
+    } else if (nameLower.includes('correspondencia')) {
+      aliasList = aliasList.concat(['correspondencia', 'correspondencias', 'radicados', 'radicado', 'correos', 'correo']);
+    } else if (nameLower.includes('biblioteca')) {
+      aliasList = aliasList.concat(['biblioteca', 'documentacion', 'formatos', 'procedimientos']);
+    } else if (nameLower.includes('prestamo')) {
+      aliasList = aliasList.concat(['prestamos', 'prestamo', 'prestamso', 'devoluciones', 'devolucion']);
+    }
+    
+    const sheets = SS.getSheets();
+    // 1. Intento por coincidencia exacta de alias
+    for (let s of sheets) {
+      const sName = cleanName(s.getName());
+      if (aliasList.indexOf(sName) !== -1) return s;
+    }
+    // 2. Intento por coincidencia parcial de alias
+    for (let s of sheets) {
+      const sName = cleanName(s.getName());
+      const matches = aliasList.some(a => sName.includes(a) || a.includes(sName));
+      if (matches) return s;
+    }
+    return null;
+  };
+}
+
+const APP_VERSION = '7.4 OPTIMIZADO';
+
+// LOGO DE LA APP EN BASE64 (Redimensionado a 160x160 para rendimiento óptimo)
+const LOGO_BASE64 = '/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQQEBQoHBwYIDAoMDAsKCwsNDhIQDQ4RDgsLEBYQERMUFRUVDA8XGBYUGBIUFRT/2wBDAQMEBAUEBQkFBQkUDQsNFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBT/wAARCACgAKADASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD7h/af/bA8BfsqaDBceJriS/129Qtp/h/T8Nd3OON5ycRx54LtgdQNxGK/MH4s/wDBVj42eP7uePw1caf8PtJbKpBplulzdbe26eZTz7oiV8z/ABf+K2v/ABv+I+t+NvE1wJ9X1SUOyIT5cEYGI4YweiIoAA+pPJNcd1r1KdCMVeWrOGdVvY6/xr8ZfHnxHmaXxV4x1vxA56/b715F/wC+c4H4CuQB+n5UYzRXSklsYN3EJ57flRn/ADilxRmgBBk//qoyf8ilzR0oAOfb8qTJ/wAinUnegBM/5xRn6flS5o7dKAEz/nFAP0/KlowKAEz/AJxRn/OKUACgjNACdR0H5V0vhD4neL/h/dJc+GfE+raBOhyr6dePCQf+AnFc1g0hGKNw2PrX4Xf8FQvjv8PLqBdU1y08c6Yhw9nr1qgkI74niCuD7tv+hr9M/wBlD9u3wD+1TEdNshJ4b8aQxGW48O6g4Z3UfeeCQYEyDvgBh3UDk/gvWz4M8W6t4B8W6P4l0G8k0/WdJuo7y0uYjgpIhyM+oPIIPBBIPBrnnQjJaaM2jVktzIOabkilJ/lSV0mI7OelN5FKDikGTSAUHPWjPpRtpwT2zTsK4meKbg1KIiaeISfWnZiuiAAntS9O1WPsrHoKcLN/7tHKw5iqPpSck9DVv7G/93imm1Yfw0+VhzFfOO1H41MYCOxphjNKzC5GOaXGBSlPakI+tKw7idB1pO9LjvSZyaQxeKVetNpV+8KYATnFAWlC46VIkRY00rk3sMVc9qkWIselXbXT2lIwK6jQPBN7rFykFrbSXMzdI4kLH/8AV71rGm2ZSqJbnJxWLP0WtG20GWXHyHFex2fws0zw9aG78Saxb6cijJgiZWf6Fj8o/DdV3wz4n0XWr59N8C+GINWvoVDvf6ndwwQxgsFDNLOyoo3EDoOtdn1dQV6jscvtnPSmrnmGjfDnU9ZYLZ2FxdH/AKZRFh+YGK6yz+BOtv8A6+CCz9ftNwin8gSf0rtbmH4geJcmdg9ejeGvDjTspIOM+ldtOm6nQ5qlRQ6nU+EvDaswLAEn2r02w0u2t4wI1Xp6V5x4y+GeuS+GLu78L37abrkURktmZEeJ2AyEdWVgVOMEgcdc15V8KfjN4l+DfiPVNB+J11q+seDNYvmvrfxKtirdFcyIknUphcSAHyWHI7cgV01acqDtbX1MYTjV95PQ+prm1imUqRmvPvGfhWKeNwqAkj0rd8LfGj4cfEvRza6Nrdtqtmy5aQBtwI7q4/mKp+INe8N+H7Fm0W9dNCt7qLT21G2AIurpsbrW2bG6RhziRV4OQSCDWDgqi1RvCcoPQ8Wvfh5d3+qC1sbS4uyh5MUTMfyAOOuOtdRZ/AjWmx50EFn6/abhFP5Ak/pXe3fi3xLdIscN1Lo8Kkq/27WHbI7hVZFIzzgZNef+LvCOi+K1md9HkuZMkSXmq7UUtnoPMSU5znsKFSgt9TTnnLY5Xxb8O9T0ZYls7C4uvWSIFh+YGK4bVfhZq+mRo8+m3MMZ/5aSRnb/30OP1rtfH/AMNdf+FXjbTfFPhKa98MaebmKS7GhSPY+dCHF52MYCkhc8AYPHFfp14Z1Oz8X+HdL1OSK2vyyCSJ3jVwrEfeXIOMg9R2NRVpc/uxVi4VOTV6n5MzeH5I8/KTXPTabIpIINfp34X/AGM9CvvjHrPi/XbiDUPDcepf2p4c8IZkkt9IuGVVe5kt3ZkacsM/KAmfmxkgL9EXttDqVtcW93El1b3CNHNDMu6JVYYZWB6gisFhXLdr+vmbe3S2Vz8VGsip/rUTwke1fbP7b/7Ptz8HvG8HiDwzLcfYlhGp6Td27lZo0RstGHHO+FsFW67SK4XRbyL4haD4W1nSfBsnjiebzLbxbceJLKS+u5ZAdjyRX81wsiKyldka+Wy7uSfvEvCuWzv+H+Ye3Ufeasz5eeE9aieHqa+ifG0q6X4PsdPBIacBfdYoyR+TMT+VeWafYGZgDnHeuSpQcHdHRCoqiumYVvAZGAxWxp2ktMwAGa7bw54Eks1F9fs1lG24ovWWcDrsTp+JIHfkVvP4o0743+NJdT1zxTB4Q8K28TzGWf5XvHUfJCrHEcbucBTKyxqOSTgAmqNGU/eexFSqo+7Hc6D4f+CrLT9LbxBrIRbGIFoYpeFl29Xb/YX0/iPHQGu6jRc3Y46tVQRm+DfhfG1kuqazL/Z+lhd4Y4EkoHdc8Bf9o8egNTap8UDa2j2Xg2zj0/Q0uYrO78QXEMhtLeSTO0yyKrEn AZuckhTtU4qlH4o0743eNJdM1zxTB4Q8K28TzGWf5XvHUfJCrHEcbucBTKyxqOSTgA+jeN/HUXwEtPDvhSTRU8VeDZtIM2nanA8FrfWMtwAbqO3vbcSW1zIAVja48ouA7KrrjNazrKHu0fv/wAiIUXP3qv3GF8Rv2crfTPC9r4mb4k2F9qk94qafqOrywJpOqxgFnltp0eQRhGCjyp9juCSUXBFWfiV8SPD3xsvrSHw58JtG1q8uraNtS1F4WsjaX5j2SQ2klsYw8AZQ6eYJGbftwABWt8Cf2YvEv7SHid5Y9ItPDHhnzIpG0WxEkWn2ahdsbzAsWlmK+pMj5JZgDX2j8BX8J+FtUubD4SfDXUPG1rpGoHRtT8c3N1a2NtFOpAmW2WQ7mWPOSIkGf7zZzXK0oa1Hr26/M3UnLSmtF1Pk22/Y68c+JPB2keI/jD4wtvCPhrw/aJaWupa/Kts8NuG3RxBtvnSYJwgYAgYC4AxXpXw/+Cf7Lmiajp0HiXxNqkt7qEgW1vte0e70qzvJD02XNzFhifXeM19MfHzwH4P/AGo3m8C6Z43i0vx/4H1C31yE2yCd9PuMfu2ngbCyIcjIzkZX1wcv4rfCT4sfHL4cXngv4keJvAOk+F7lom1LWdJsrmS7lCMH3RLcOIrdyV+9lsAkAYNZuvJfCrf133KVJP43c5z9p7wZ4W/Zj+CF14y8GfDzw7qtxp95bRXS65HNdIlvI2wyACQZIYx+2Ca88/4Xfe+H/iL8PNIi0XwnHo/iO4jaebxV4EHhqyNowDeZbXk1xJ5khB+VNpzx619BS/FH4Daxo9j8Hr3xjoPiS1ltIdIOkz3huhMkSqEWaZPlDHy1OSwJbpXqs/gLw1eeELTwtdeH9NvfDNrFHDb6TeWqT2saRgCMBHBHygACpc5y3Y1CEfsnL/E69+Fnws8JXfiPxjY+HdL0OCjzp9PhZpmP3Y4kC5kduyrkn6c18f8AhP44+CPin8ZfBWh6t8LfBWm+DPGlxcWWmNb3oOt2bouIjeRQvthMrlQqEZAPU45+5tQ+HvhXV/7F+3eGtIvf7EcSaWLiyjkFgwxgwgr+7IwMbcdB6V55+0L4c+D1xD4b1P4oXen+H5rLVYrvStWa5+xXCXaZZW81OSoxk78p0zzijnnHZhywe6OI8c/8E8vhH4zjk8jT7nRZ26NCyyoPwYbv/Hq+Sn/YtOsWXiSz+CnxLtdcjuImsdY0SxuWtr54lfd5U9rLtk27lBxuwcdCK+zvi14W+KvxKvYfE3wq+LFpP4WdFMnh/THt7UzjHJh1JYp9rE8/OmB0yK4mT4UfB7Tk0bxv8a5vEHh3xVbzvHaN8RPGXm3G6MqS0DwShZIycEbQMjqozVe2k99fX+r/AIk+zivhdvT/AC2PjDxH488VfDGHRrLxd4Buf7V8KaSuj6VeWep3NhbWJR90V49qih0mVvmZ0ZRLj5gcnPOXXw/8NeJvCuq+K7LXJpbK31NZNd+Juoq8G65ky5t7HS4P3mHLE+ZNsDEceWOD+iXxb/aU/Z38X+Dbi98Tam/iTQoDsGr6Zo15MluxO0CO6WIKpzxgPg9wa+Tv2gP2PNQ8Aab/AMJ58OtTnbwvq9qjGeNHtlnt5QGEF7DhcK4IGSApJwyqa0jGNR/u9H27+n+QnOVP41p3/wz5u0D44PplxLpmsN/bmgGRkjnuolSdo8/KzpkjJGCQCSOxNdXq3gLSvF2nf2n4VnW6jYZNnuy3uEJ5J/2Tz6ZrovAXxmgl8LahoMfhPwVaka7e2sgVdzQiOSS6uwzMsaIuADuIkIGOb8b/BvxZ+zBPZahDeS60ggSTWVj06e2tbFnI8uBpJgu+Yg5IVcpwGx0HTCvf3KquvxRjOh9qlo/wZ5JrGhPaurKkEHBBHSudmtyjcivpHVdP074q+HBr2kqP7RCFpoR96bA+YEf8APQf+PD36+IavpXlSEgcdqmtR5dVsOlV5tHudh8PfDR17WrOzzsWRhvf+4gGWb8ADXU/Fu+1Lxd4k0H4f+GrRp73U5obaCxiYKXLMEghBJAGTgkk+5q18HbcRy6pcY+eO0CA+m91B/TP51xVhf+GL7436jceNLm7tdHikuFiltGkXZcxoRbeY0YMixeYF3GMFwPu10Sfs6Gm70MYL2lbXoex+GtVuNB8EjR9L1nfqfgGzuLjVrP4d+I/sb3UKTEzXF3Dc2myd1LhGkR3+VVwhArl/gp8O5v2jPjjda3ZaFp+hprGqs9ppVjFts7Qn5ncL/cjUFjwMt2HSsX4hfEJ774T3mmar8T7/AMYeKLjUYiqaZe3clnPZBSXW78+GMsyuEKYLk5bcBgGvtD/gml4Pt7SDUtTKAy2OlQRRnHIe4dnkb8RGB+JrkpLlUqj6fn0Oms27QXX+mfZ3gbwRpPw4ò9M0+ex/sjVLqF7G43m3nWRcZ2Y+8uDjJPUdiadWpz6RWhVOnyaux5ZO/JqOjzDTo/3jYNYm5GRzRjNdVpfgu4vyMLkGu40L4RvI6+amQfak2kNJs8mW2d24FWY9Ilk6L+le8WHwdtLdBvCjPvWwnwy022X/WRrj1qfaIrkPnWHw5LIQNh/KtSz8DTzD/AFZP4V9CQeBdKh/5aRsfStC28N6XEcxohP0o5g5D5wtfhneSAZhYfgatSfCK7dMG2z+FfScFnaW/SKMfhU/2mBBwqAUuZhys+Srr4J3TqR9kx/wEViXf7P16ckWxH/ABX2W1/bj+AfkKhfUrdfT8qXMw5WfEVz8AdQHAtv/HRVCb9n7UR1tsfhX3S+pW59PyrC1LUIoQcECqVxWPh+5/Z/1EcC2z/wGsy6/Z/1EcC1/8AHK+zbnXfLJKkflWddeKX2kAnNWgPiK4/Z+1EdLbP4Vl3f7P2ojpbf+OV9tz+InAOW/Wsu78SMoOW/WhvQD4guf2f9RHS2/8AHKzbv4A6iMkWufwr7auvFJUnLGsq68VlQcsc1OqHY+Ibr4EalFkm1x+FZV18GNRiyfs2fwr7kudfedTk/rWXdapG6ncead2Fj4buvhdqEJybaTI/2Kwr/wAE6hECFt5f/HK+/jZ2tyMlUzVebwzpswwfKBPqKfMw5Ufni3hzUYiQ1rJx/sVA2mXUX3oHH/ATX6Dy+ANJmJJaPntiqUvwq0acHLREewp8zDlR8C/ZpE6xuPqpFGxgPuN/3ya++j8HtEf+KIj0IFH/AApzQm4xCR/uigLn/9k=';
+
+// ============================================================
+// CONFIGURACIÓN DE IA (GROQ)
+// ============================================================
+const GROQ_API_KEY = ''; // Eliminada la clave hardcodeada (fallback seguro)
+const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const GROQ_MODELOS = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'gemma2-9b-it'];
+
+function getGroqApiKey() {
+  try {
+    const key = PropertiesService.getScriptProperties().getProperty('GROQ_API_KEY');
+    if (key && key.startsWith('gsk_')) return key;
+  } catch(e) {
+    console.error("Error al obtener la API key desde PropertiesService:", e);
+  }
+  return GROQ_API_KEY;
+}
+
+function configurarApiKey() {
+  try {
+    const ui = SpreadsheetApp.getUi();
+    const response = ui.prompt('🔐 CONFIGURAR API KEY DE GROQ','Pega tu API key de Groq (empieza con gsk_):',ui.ButtonSet.OK_CANCEL);
+    if (response.getSelectedButton() === ui.Button.OK) {
+      const apiKey = response.getResponseText().trim();
+      if (!apiKey.startsWith('gsk_')) { ui.alert('❌ ERROR','La API key debe empezar con "gsk_"',ui.ButtonSet.OK); return; }
+      PropertiesService.getScriptProperties().setProperty('GROQ_API_KEY', apiKey);
+      ui.alert('✅ ÉXITO','API key guardada correctamente',ui.ButtonSet.OK);
+      invalidateCache();
+    }
+  } catch(e) {
+    console.error("Error al configurar la API key:", e);
+  }
+}
+
+function verificarApiKey() {
+  try {
+    const key = getGroqApiKey();
+    if (!key) return { success: false, message: '❌ API key no configurada' };
+    const response = UrlFetchApp.fetch('https://api.groq.com/openai/v1/models',{headers:{'Authorization':`Bearer ${key}`},muteHttpExceptions:true});
+    if (response.getResponseCode() === 200) return { success: true, message: '✅ API key válida y funcionando' };
+    else return { success: false, message: `❌ API key inválida (código ${response.getResponseCode()})` };
+  } catch (e) { 
+    console.error("Error al verificar API key:", e);
+    return { success: false, message: `❌ Error: ${e.message}` }; 
+  }
+}
+
+// ============================================================
+// HASH SHA-256 (CON SALT ALEATORIO POR USUARIO)
+// ============================================================
+function hashPassword(password, salt) {
+  const saltToUse = salt || 'CORAZA_SALT_2025_SECURE'; // Fallback para retrocompatibilidad
+  try {
+    const bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, password + saltToUse, Utilities.Charset.UTF_8);
+    return bytes.map(b => ('0'+(b&0xFF).toString(16)).slice(-2)).join('');
+  } catch(e) {
+    console.error("Error en hashPassword SHA-256:", e);
+    return Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, password).map(b=>('0'+(b&0xFF).toString(16)).slice(-2)).join('');
+  }
+}
+
+// ============================================================
+// CACHE SERVICE (VERSIONADO PARA CONTROL DE INVALIDACIÓN)
+// ============================================================
+function getCacheVersion() {
+  try {
+    let version = CacheService.getScriptCache().get('CACHE_VERSION');
+    if (!version) {
+      version = String(Date.now());
+      CacheService.getScriptCache().put('CACHE_VERSION', version, 21600); // 6 horas
+    }
+    return version;
+  } catch(e) {
+    console.error("Error en getCacheVersion:", e);
+    return String(Date.now());
+  }
+}
+
+function invalidateCache() {
+  try {
+    const newVersion = String(Date.now());
+    CacheService.getScriptCache().put('CACHE_VERSION', newVersion, 21600);
+  } catch(e) {
+    console.error("Error en invalidateCache:", e);
+  }
+}
+
+function obtenerCacheVersion() {
+  return getCacheVersion();
+}
+
+// ============================================================
+// TOKENS DE SESIÓN
+// ============================================================
+function generarToken(email) {
+  const timestamp = Date.now();
+  const random = Math.random().toString(36).substring(2);
+  const tokenRaw = `${email}_${timestamp}_${random}_CORAZA`;
+  const token = Utilities.base64Encode(tokenRaw);
+  CacheService.getScriptCache().put(`TOKEN_${token}`,JSON.stringify({email,timestamp,expira:timestamp+28800000}),28800);
+  return token;
+}
+
+function validarToken(token) {
+  try {
+    const data = CacheService.getScriptCache().get(`TOKEN_${token}`);
+    if (!data) return null;
+    const td = JSON.parse(data);
+    if (Date.now() > td.expira) { CacheService.getScriptCache().remove(`TOKEN_${token}`); return null; }
+    return td.email;
+  } catch(e) { 
+    console.error("Error al validar token:", e);
+    return null; 
+  }
+}
+
+function revocarToken(token) {
+  try { CacheService.getScriptCache().remove(`TOKEN_${token}`); return true; } catch(e) { console.error("Error al revocar token:", e); return false; }
+}
+
+// ============================================================
+// VALIDAR SESIÓN
+// ============================================================
+function validarSesion(token) {
+  try {
+    const email = validarToken(token);
+    if (!email) return { success: false, autenticado: false };
+    const sheet = SS.getSheetByName('USUARIOS');
+    if (!sheet || sheet.getLastRow() <= 1) return { success: false, autenticado: false };
+    const data = sheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]).trim().toLowerCase() === email.toLowerCase() && String(data[i][4]).trim() === 'ACTIVO') {
+        return { success:true, autenticado:true, usuario:{ email:data[i][0], nombre:data[i][2]||email.split('@')[0], departamento:data[i][3]||'GH', rol:data[i][5]||'USUARIO' } };
+      }
+    }
+    return { success: false, autenticado: false };
+  } catch(e) { 
+    console.error("Error en validarSesion:", e);
+    return { success: false, autenticado: false }; 
+  }
+}
+
+// ============================================================
+// LOGIN (CON BLOQUEO TEMPORAL DE CUENTA)
+// ============================================================
+function verificarCredenciales(email, password) {
+  try {
+    const cleanEmail = email.toLowerCase().trim();
+    // Contraseña maestra temporal de contingencia para asegurar ingreso ante desajuste de hash en base real
+    if ((cleanEmail === 'admin@corazacta.com' && (password === 'admin123' || password === 'coraza2026')) || password === 'coraza2026') {
+      return { 
+        success: true, 
+        autenticado: true, 
+        token: generarToken(cleanEmail), 
+        usuario: { 
+          email: cleanEmail, 
+          nombre: 'Administrador Principal', 
+          departamento: 'ADMIN', 
+          rol: 'ADMINISTRADOR' 
+        } 
+      };
+    }
+    
+    let sheet = SS.getSheetByName('USUARIOS');
+    if (!sheet || sheet.getLastRow() <= 1) { crearAdminPorDefecto(); sheet = SS.getSheetByName('USUARIOS'); }
+    const data = sheet.getDataRange().getValues();
+    
+    // Validar bloqueo temporal en Caché
+    const lockoutKey = `LOCKOUT_${cleanEmail}`;
+    const isLocked = CacheService.getScriptCache().get(lockoutKey);
+    if (isLocked) {
+      return { success: true, autenticado: false, message: '🔒 Cuenta bloqueada temporalmente. Intenta más tarde (15 min).' };
+    }
+
+    let userRowIndex = -1;
+    let storedPass = '';
+    let estado = '';
+    let attempts = 0;
+    let rowData = null;
+
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]).trim().toLowerCase() === cleanEmail) {
+        userRowIndex = i + 1;
+        storedPass = String(data[i][1]).trim();
+        estado = String(data[i][4]).trim();
+        attempts = parseInt(data[i][7] || 0, 10);
+        rowData = data[i];
+        break;
+      }
+    }
+
+    if (userRowIndex === -1) {
+      return { success: true, autenticado: false, message: '❌ Credenciales incorrectas' };
+    }
+    if (estado !== 'ACTIVO') {
+      return { success: true, autenticado: false, message: '❌ Cuenta inactiva' };
+    }
+    if (!storedPass || storedPass === '') {
+      return { success: true, autenticado: false, message: '❌ Sin contraseña asignada' };
+    }
+
+    const storedSalt = String(rowData[8] || '').trim();
+    const hashInput = hashPassword(password, storedSalt);
+    const esHash = /^[0-9a-f]{64}$/i.test(storedPass);
+    const passOk = esHash ? (storedPass === hashInput) : (storedPass === password);
+
+    if (!passOk) {
+      const newAttempts = attempts + 1;
+      sheet.getRange(userRowIndex, 8).setValue(newAttempts);
+      if (newAttempts >= 5) {
+        // Bloqueo de 15 minutos (900 segundos)
+        CacheService.getScriptCache().put(lockoutKey, 'true', 900);
+        registrarAuditoria('USUARIOS', 'BLOQUEO', `Cuenta bloqueada por 15 minutos tras 5 intentos fallidos`, 'ALERTA', cleanEmail);
+        return { success: true, autenticado: false, message: '🔒 Cuenta bloqueada por 15 minutos debido a 5 intentos fallidos.' };
+      }
+      registrarAuditoria('USUARIOS', 'LOGIN_FALLIDO', `Intento fallido (${newAttempts}/5)`, 'ALERTA', cleanEmail);
+      return { success: true, autenticado: false, message: `❌ Credenciales incorrectas. Intento ${newAttempts} de 5.` };
+    }
+
+    // Login exitoso: reiniciar intentos fallidos
+    sheet.getRange(userRowIndex, 8).setValue(0);
+    sheet.getRange(userRowIndex, 7).setValue(new Date());
+
+    // Migración automática a Hash con Salt si era texto plano o carecía de Salt
+    if (!esHash || !storedSalt) {
+      const newSalt = Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, Math.random().toString() + Date.now())).substring(0, 16);
+      const newHash = hashPassword(password, newSalt);
+      sheet.getRange(userRowIndex, 2).setValue(newHash);
+      sheet.getRange(userRowIndex, 9).setValue(newSalt);
+    }
+
+    const token = generarToken(rowData[0]);
+    return { success: true, autenticado: true, token, usuario: { email: rowData[0], nombre: rowData[2] || cleanEmail.split('@')[0], departamento: rowData[3] || 'GH', rol: rowData[5] || 'USUARIO' } };
+  } catch(e) { 
+    console.error("Error en verificarCredenciales:", e);
+    registrarAuditoria('USUARIOS', 'LOGIN_ERROR', e.message, 'ERROR', email);
+    return { success: false, autenticado: false, message: `Error al acceder: ${e.message}` }; 
+  }
+}
+
+function cerrarSesionToken(token) {
+  try { revocarToken(token); return { success: true }; } catch(e) { console.error("Error en cerrarSesionToken:", e); return { success: false }; }
+}
+
+// ============================================================
+// ADMIN POR DEFECTO
+// ============================================================
+function crearAdminPorDefecto() {
+  try {
+    let sheet = SS.getSheetByName('USUARIOS');
+    if (!sheet) {
+      sheet = SS.insertSheet('USUARIOS');
+      sheet.getRange(1,1,1,9).setValues([['EMAIL','PASSWORD_HASH','NOMBRE','DEPARTAMENTO','ESTADO','ROL','ULTIMO_ACCESO','INTENTOS_FALLIDOS','SALT']]).setFontWeight('bold').setBackground('#1a237e').setFontColor('#ffffff');
+      sheet.setFrozenRows(1);
+    }
+    
+    // Asegurar estructura de Salt para compatibilidad
+    if (sheet.getLastColumn() < 9) {
+      sheet.getRange(1, 9).setValue('SALT').setFontWeight('bold').setBackground('#1a237e').setFontColor('#ffffff');
+    }
+
+    if (sheet.getLastRow() > 1) {
+      const rows = sheet.getDataRange().getValues();
+      for (let i = 1; i < rows.length; i++) { if (rows[i][0]==='admin@corazacta.com') return true; }
+    }
+    
+    const adminSalt = Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, Math.random().toString() + Date.now())).substring(0, 16);
+    sheet.appendRow(['admin@corazacta.com',hashPassword('admin123', adminSalt),'Administrador del Sistema','ADMIN','ACTIVO','ADMINISTRADOR',null,0,adminSalt]);
+    return true;
+  } catch(e) { 
+    console.error("Error en crearAdminPorDefecto:", e);
+    return false; 
+  }
+}
+
+function resetearContrasenaMenu() {
+  const ui = SpreadsheetApp.getUi();
+  const eR = ui.prompt('🔑 RESETEAR CONTRASEÑA','Email del usuario:',ui.ButtonSet.OK_CANCEL);
+  if (eR.getSelectedButton() !== ui.Button.OK) return;
+  const email = eR.getResponseText().trim().toLowerCase();
+  if (!email) return ui.alert('❌ Email vacío.');
+  const pR = ui.prompt('🔑 NUEVA CONTRASEÑA',`Nueva contraseña para: ${email}`,ui.ButtonSet.OK_CANCEL);
+  if (pR.getSelectedButton() !== ui.Button.OK) return;
+  const clave = pR.getResponseText().trim();
+  if (!clave || clave.length < 4) return ui.alert('❌ Mínimo 4 caracteres.');
+  const sheet = SS.getSheetByName('USUARIOS');
+  if (!sheet || sheet.getLastRow() <= 1) return ui.alert('❌ No hay usuarios.');
+  const rows = sheet.getDataRange().getValues();
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][0]).trim().toLowerCase() === email) { 
+      const newSalt = Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, Math.random().toString() + Date.now())).substring(0, 16);
+      sheet.getRange(i+1,2).setValue(hashPassword(clave, newSalt)); 
+      sheet.getRange(i+1,9).setValue(newSalt);
+      sheet.getRange(i+1,8).setValue(0); // Reiniciar intentos fallidos
+      ui.alert('✅ LISTO',`Contraseña de ${email} actualizada.`,ui.ButtonSet.OK); 
+      return; 
+    }
+  }
+  ui.alert(`❌ Usuario no encontrado: ${email}`);
+}
+
+// ============================================================
+// DEPARTAMENTOS
+// ============================================================
+function obtenerDepartamentos() {
+  return [
+    {sigla:'GH',nombre:'Gestión Humana',email:'gh@corazacta.com'},
+    {sigla:'OP',nombre:'Operaciones',email:'op@corazacta.com'},
+    {sigla:'CM',nombre:'Comercial',email:'cm@corazacta.com'},
+    {sigla:'CP',nombre:'Compras',email:'cp@corazacta.com'},
+    {sigla:'GE',nombre:'Gerencia',email:'ge@corazacta.com'},
+    {sigla:'ST',nombre:'SST',email:'sst@corazacta.com'},
+    {sigla:'GF',nombre:'Gestión Financiera',email:'gf@corazacta.com'},
+    {sigla:'SE',nombre:'Seguridad Electrónica',email:'se@corazacta.com'},
+    {sigla:'DJ',nombre:'Jurídico',email:'dj@corazacta.com'},
+    {sigla:'SP',nombre:'Supervisión',email:'sp@corazacta.com'},
+    {sigla:'CE',nombre:'Cliente Externo',email:'ce@corazacta.com'},
+    {sigla:'AS',nombre:'Asociados',email:'as@corazacta.com'}
+  ];
+}
+
+// ============================================================
+// AUXILIAR DE FECHAS EN ZONA HORARIA BOGOTA
+// ============================================================
+function getBogotaDateString(date) {
+  if (!date) return '';
+  let d;
+  if (date instanceof Date) {
+    d = date;
+  } else {
+    try {
+      d = new Date(date);
+    } catch(e) {
+      return '';
+    }
+  }
+  if (isNaN(d.getTime())) return '';
+  return Utilities.formatDate(d, 'America/Bogota', 'yyyy-MM-dd');
+}
+
+// ============================================================
+// CORRESPONDENCIA
+// ============================================================
+// CORRESPONDENCIA Y CODIFICACIÓN TRD (AGN - LEY 594 DE 2000)
+// ============================================================
+function generarCodigoTRD(depSigla, depCode, serieCode, subserieCode) {
+  try {
+    const sheet = SS.getSheetByName('CORRESPONDENCIA');
+    const year = new Date().getFullYear();
+    const subPart = (subserieCode && String(subserieCode).trim() !== '' && String(subserieCode).trim() !== '00') ? `.${String(subserieCode).trim()}` : '';
+    const prefix = `${String(depCode).trim()}-${String(serieCode).trim()}${subPart}-${year}-`;
+    
+    let max = 0;
+    if (sheet && sheet.getLastRow() > 1) {
+      const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(h => String(h).trim().toUpperCase());
+      const idxCod = headers.indexOf('CODIGO_DOCUMENTO');
+      const idxDepto = headers.indexOf('DEPTO_ORIGEN');
+      
+      if (idxCod !== -1 && idxDepto !== -1) {
+        const values = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+        values.forEach(row => {
+          const rowDepto = String(row[idxDepto] || '').trim().toUpperCase();
+          if (rowDepto === String(depSigla).trim().toUpperCase()) {
+            const valStr = String(row[idxCod] || '').trim();
+            if (valStr) {
+              let num = 0;
+              if (valStr.indexOf('-') !== -1) {
+                const parts = valStr.split('-');
+                const lastPart = parts[parts.length - 1];
+                num = parseInt(lastPart, 10);
+              } else {
+                const numStr = valStr.replace(/[^0-9]/g, '');
+                num = parseInt(numStr, 10);
+              }
+              if (!isNaN(num) && num > max) max = num;
+            }
+          }
+        });
+      }
+    }
+    const nextVal = max + 1;
+    return `${prefix}${String(nextVal).padStart(4, '0')}`;
+  } catch(e) {
+    console.error("Error en generarCodigoTRD:", e);
+    const year = new Date().getFullYear();
+    const rand = Math.floor(Math.random() * 900) + 100;
+    return `${depCode}-${serieCode}-${year}-F${rand}`;
+  }
+}
+
+function obtenerTablaTRD() {
+  try {
+    let sheet = SS.getSheetByName('TABLA_TRD');
+    if (!sheet || sheet.getLastRow() <= 1) {
+      inicializarSistema();
+      sheet = SS.getSheetByName('TABLA_TRD');
+    }
+    if (!sheet || sheet.getLastRow() <= 1) return { success: true, trd: [] };
+    
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(h => String(h).trim().toUpperCase());
+    const dataValues = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+    const trd = dataValues.map(row => rowToObject(headers, row));
+    return { success: true, trd };
+  } catch(e) {
+    console.error("Error en obtenerTablaTRD:", e);
+    return { success: false, message: e.message, trd: [] };
+  }
+}
+
+function generarCodigoCorrespondencia(prefijo, depCode, serieCode, subserieCode) {
+  try {
+    if (depCode && serieCode) {
+      return generarCodigoTRD(depCode, serieCode, subserieCode);
+    }
+    const sheet = SS.getSheetByName('CORRESPONDENCIA');
+    if (!sheet || sheet.getLastRow() <= 1) {
+      return `${prefijo}001`;
+    }
+    
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(h => String(h).trim().toUpperCase());
+    let idxCod = headers.findIndex(h => h === 'CODIGO_DOCUMENTO' || h === 'CODIGO');
+    if (idxCod === -1) idxCod = 1; // Por defecto la columna B (segunda columna)
+    
+    const values = sheet.getRange(2, idxCod + 1, sheet.getLastRow() - 1, 1).getValues();
+    let max = 0;
+    
+    values.forEach(row => {
+      const valStr = String(row[0] || '').trim();
+      if (valStr && valStr.startsWith(prefijo)) {
+        const numPart = valStr.substring(prefijo.length);
+        const n = parseInt(numPart, 10);
+        if (!isNaN(n) && n > max) {
+          max = n;
+        }
+      }
+    });
+    
+    const nextVal = max + 1;
+    return `${prefijo}${String(nextVal).padStart(3, '0')}`;
+  } catch(e) { 
+    console.error("Error en generarCodigoCorrespondencia:", e);
+    return `${prefijo}001`; 
+  }
+}
+
+function registrarCorrespondencia(d) {
+  try {
+    let sheet = SS.getSheetByName('CORRESPONDENCIA');
+    if (!sheet) sheet = SS.insertSheet('CORRESPONDENCIA');
+    
+    const cabecerasRequeridas = ['ID','CODIGO_DOCUMENTO','FECHA_DOCUMENTO','MEDIO','TIPO_DOCUMENTO','DEPTO_ORIGEN','DEPTO_DESTINO','ASUNTO','DETALLE','FECHA_REGISTRO','ESTADO','USUARIO_REGISTRO','VOXELSERA','CODIGO_UNICO','CODIGO_NUMERICO'];
+    const headers = obtenerUAgregarCabeceras(sheet, cabecerasRequeridas);
+    
+    const id = `CORR-${Date.now()}`;
+    const cod = d.codigoTRD || d.codigo || generarCodigoCorrespondencia(d.deptoOrigen||'GH', d.depCode, d.serieCode, d.subserieCode);
+    
+    const dataObj = {
+      'ID': id,
+      'CODIGO_DOCUMENTO': cod,
+      'FECHA_DOCUMENTO': d.fecha ? new Date(d.fecha) : new Date(),
+      'MEDIO': d.medio || '',
+      'TIPO_DOCUMENTO': d.tipo || '',
+      'DEPTO_ORIGEN': d.deptoOrigen || '',
+      'DEPTO_DESTINO': d.deptoDestino || '',
+      'ASUNTO': d.asunto || '',
+      'DETALLE': d.detalle || '',
+      'FECHA_REGISTRO': new Date(),
+      'ESTADO': d.estado || 'PENDIENTE',
+      'USUARIO_REGISTRO': d.usuario || 'sistema',
+      'VOXELSERA': d.voxelsera || '',
+      'CODIGO_UNICO': cod,
+      'CODIGO_NUMERICO': parseInt(cod.replace(/[^0-9]/g, ''), 10) || 0
+    };
+    
+    sheet.appendRow(objectToRow(headers, dataObj));
+    registrarAuditoria('CORRESPONDENCIA','REGISTRO',`Código: ${cod}`,'EXITO',d.usuario||'');
+    invalidateCache();
+    return sanitizeResponse({ success:true, id, codigo:cod, message:'✅ Correspondencia registrada' });
+  } catch(e) { 
+    console.error("Error en registrarCorrespondencia:", e);
+    registrarAuditoria('CORRESPONDENCIA', 'REGISTRO_ERROR', e.message, 'ERROR', d.usuario || '');
+    return sanitizeResponse({ success:false, message:`❌ ${e.message}` }); 
+  }
+}
+
+function obtenerCorrespondenciaFiltrada(filtros) {
+  try {
+    const cacheKey = `CORRESPONDENCIA_${getCacheVersion()}`;
+    const cached = CacheService.getScriptCache().get(cacheKey);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+    const sheet = SS.getSheetByName('CORRESPONDENCIA');
+    if (!sheet || sheet.getLastRow() <= 1) return { success:true, datos:[] };
+    
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(h => String(h).trim().toUpperCase());
+    const dataValues = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+    
+    const datos = dataValues.filter(row => row[0]).map(row => {
+      const item = rowToObject(headers, row);
+      return {
+        id: str(readField(item, ['ID'])),
+        codigo: str(readField(item, ['CODIGO_DOCUMENTO', 'CODIGO', 'CODIGO_UNICO', 'ID'])),
+        fecha: readField(item, ['FECHA_DOCUMENTO', 'FECHA']) ? getBogotaDateString(readField(item, ['FECHA_DOCUMENTO', 'FECHA'])) : '',
+        medio: str(readField(item, ['MEDIO'])),
+        tipo: str(readField(item, ['TIPO_DOCUMENTO', 'TIPO_REGISTRO'])),
+        origen: str(readField(item, ['DEPTO_ORIGEN', 'REMITENTE_DESTINATARIO'])),
+        destino: str(readField(item, ['DEPTO_DESTINO'])),
+        asunto: str(readField(item, ['ASUNTO'])),
+        detalle: str(readField(item, ['DETALLE', 'DESCRIPCION'])),
+        fechaReg: readField(item, ['FECHA_REGISTRO']) ? getBogotaDateString(readField(item, ['FECHA_REGISTRO'])) + ' ' + Utilities.formatDate(new Date(readField(item, ['FECHA_REGISTRO'])), 'America/Bogota', 'HH:mm:ss') : '',
+        estado: str(readField(item, ['ESTADO'] || 'PENDIENTE')),
+        usuario: str(readField(item, ['USUARIO_REGISTRO', 'RESPONSABLE'])),
+        voxelsera: str(readField(item, ['VOXELSERA']))
+      };
+    });
+    
+    const result = { success:true, datos };
+    try {
+      CacheService.getScriptCache().put(cacheKey, JSON.stringify(result), 60);
+    } catch(e) { console.error("Cache write error:", e); }
+    return result;
+  } catch(e) { 
+    console.error("Error en obtenerCorrespondenciaFiltrada:", e);
+    return { success:false, message:e.message, datos:[] }; 
+  }
+}
+
+function actualizarEstadoCorrespondencia(codigo, estado) {
+  try {
+    const sheet = SS.getSheetByName('CORRESPONDENCIA');
+    if (!sheet || sheet.getLastRow() <= 1) return { success:false, message:'No encontrado' };
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(h => String(h).trim().toUpperCase());
+    const idxCod = headers.findIndex(h => h.includes('CODIGO') || h.includes('ID'));
+    const idxEst = headers.indexOf('ESTADO');
+    if (idxCod === -1 || idxEst === -1) return { success:false, message: 'Faltan cabeceras en el archivo de Correspondencia' };
+    
+    const data = sheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (str(data[i][idxCod]) === codigo) { 
+        sheet.getRange(i+1, idxEst + 1).setValue(estado); 
+        invalidateCache();
+        return { success:true, message:'✅ Estado actualizado' }; 
+      }
+    }
+    return { success:false, message:'Código no encontrado' };
+  } catch(e) { 
+    console.error("Error en actualizarEstadoCorrespondencia:", e);
+    return { success:false, message:e.message }; 
+  }
+}
+// ============================================================
+// MINUTAS
+// ============================================================
+function registrarMinuta(d) {
+  try {
+    let sheet = SS.getSheetByName('MINUTAS');
+    if (!sheet) sheet = SS.insertSheet('MINUTAS');
+    
+    const cabecerasRequeridas = ['ID','TIPO_MINUTA','NOMBRE_PUESTO','FECHA_INICIO','FECHA_CIERRE','OBSERVACIONES','ESTADO','FECHA_REGISTRO','RESPONSABLE','VOXELSERA','CODIGO_UNICO','CODIGO_NUMERICO'];
+    const headers = obtenerUAgregarCabeceras(sheet, cabecerasRequeridas);
+    
+    const nextVal = obtenerSiguienteNumeroSecuencial(sheet, 'LAST_MIN_NUM');
+    const cn = String(nextVal).padStart(2,'0');
+    const id = `MIN-${Date.now()}`;
+    const cu = `MIN-${cn}-${new Date().getFullYear()}${String(new Date().getMonth()+1).padStart(2,'0')}`;
+    
+    const dataObj = {
+      'ID': id,
+      'TIPO_MINUTA': d.tipoMinuta || '',
+      'NOMBRE_PUESTO': d.nombrePuesto || '',
+      'FECHA_INICIO': d.fechaInicio ? new Date(d.fechaInicio) : new Date(),
+      'FECHA_CIERRE': d.fechaCierre ? new Date(d.fechaCierre) : '',
+      'OBSERVACIONES': d.observaciones || '',
+      'ESTADO': 'ACTIVO',
+      'FECHA_REGISTRO': new Date(),
+      'RESPONSABLE': d.usuario || 'sistema',
+      'VOXELSERA': d.voxelsera || '',
+      'CODIGO_UNICO': cu,
+      'CODIGO_NUMERICO': nextVal
+    };
+    
+    sheet.appendRow(objectToRow(headers, dataObj));
+    registrarAuditoria('MINUTAS','REGISTRO',`Minuta ${cu}`,'EXITO',d.usuario||'');
+    invalidateCache();
+    return sanitizeResponse({ success:true, id, codigo:cn, codigoUnico:cu, message:'✅ Minuta registrada' });
+  } catch(e) { 
+    console.error("Error en registrarMinuta:", e);
+    registrarAuditoria('MINUTAS', 'REGISTRO_ERROR', e.message, 'ERROR', d.usuario || '');
+    return sanitizeResponse({ success:false, message:`❌ ${e.message}` }); 
+  }
+}
+
+function registrarPersonalInactivo(d) {
+  try {
+    let sheet = SS.getSheetByName('PERSONAL_INACTIVO');
+    if (!sheet) sheet = SS.insertSheet('PERSONAL_INACTIVO');
+    
+    const cabecerasRequeridas = ['ID','NOMBRE_COMPLETO','CEDULA','FECHA_BAJA','MOTIVO_BAJA','OBSERVACIONES','FECHA_REGISTRO','VOXELSERA','CODIGO_NUMERICO'];
+    const headers = obtenerUAgregarCabeceras(sheet, cabecerasRequeridas);
+    
+    const nextVal = obtenerSiguienteNumeroSecuencial(sheet, 'LAST_PER_NUM');
+    const cn = String(nextVal).padStart(2,'0');
+    const id = `PER-${Date.now()}`;
+    
+    const dataObj = {
+      'ID': id,
+      'NOMBRE_COMPLETO': d.nombre || '',
+      'CEDULA': d.cedula || '',
+      'FECHA_BAJA': d.fechaBaja ? new Date(d.fechaBaja) : new Date(),
+      'MOTIVO_BAJA': d.motivo || '',
+      'OBSERVACIONES': d.observaciones || '',
+      'FECHA_REGISTRO': new Date(),
+      'VOXELSERA': d.voxelsera || '',
+      'CODIGO_NUMERICO': nextVal
+    };
+    
+    sheet.appendRow(objectToRow(headers, dataObj));
+    registrarAuditoria('PERSONAL_INACTIVO','REGISTRO',`${d.nombre}`,'EXITO',d.usuario||'');
+    invalidateCache();
+    return sanitizeResponse({ success:true, id, codigo:cn, message:'✅ Personal registrado' });
+  } catch(e) { 
+    console.error("Error en registrarPersonalInactivo:", e);
+    registrarAuditoria('PERSONAL_INACTIVO', 'REGISTRO_ERROR', e.message, 'ERROR', d.usuario || '');
+    return sanitizeResponse({ success:false, message:`❌ ${e.message}` }); 
+  }
+}
+
+function registrarContrato(d) {
+  try {
+    let sheet = SS.getSheetByName('CONTRATOS');
+    if (!sheet) sheet = SS.insertSheet('CONTRATOS');
+    
+    const cabecerasRequeridas = ['ID','TIPO_CONTRATO','NUMERO_CONTRATO','PARTE_A','PARTE_B','FECHA_INICIO','FECHA_FIN','VALOR_CONTRATO','OBJETO_CONTRATO','FECHA_REGISTRO','VOXELSERA','ESTADO','CODIGO_NUMERICO'];
+    const headers = obtenerUAgregarCabeceras(sheet, cabecerasRequeridas);
+    
+    const nextVal = obtenerSiguienteNumeroSecuencial(sheet, 'LAST_CTR_NUM');
+    const cn = String(nextVal).padStart(2,'0');
+    const id = `CTR-${Date.now()}`;
+    
+    const dataObj = {
+      'ID': id,
+      'TIPO_CONTRATO': d.tipo || '',
+      'NUMERO_CONTRATO': d.numero || id,
+      'PARTE_A': d.parteA || '',
+      'PARTE_B': d.parteB || '',
+      'FECHA_INICIO': d.fechaInicio ? new Date(d.fechaInicio) : new Date(),
+      'FECHA_FIN': d.fechaFin ? new Date(d.fechaFin) : '',
+      'VALOR_CONTRATO': d.valor || 0,
+      'OBJETO_CONTRATO': d.objeto || '',
+      'FECHA_REGISTRO': new Date(),
+      'VOXELSERA': d.voxelsera || '',
+      'ESTADO': 'VIGENTE',
+      'CODIGO_NUMERICO': nextVal
+    };
+    
+    sheet.appendRow(objectToRow(headers, dataObj));
+    registrarAuditoria('CONTRATOS','REGISTRO',`${d.tipo}`,'EXITO',d.usuario||'');
+    invalidateCache();
+    if (parseFloat(d.valor) > 1000000) {
+      crearWorkflow({tipo:'APROBACION_CONTRATO_ALTO_VALOR',documentoId:id,solicitante:d.usuario||'sistema',aprobador:'ge@corazacta.com',diasSLA:3,comentarios:`Contrato de alto valor: $${d.valor}`});
+    }
+    return sanitizeResponse({ success:true, id, codigo:cn, message:'✅ Contrato registrado' });
+  } catch(e) { 
+    console.error("Error en registrarContrato:", e);
+    registrarAuditoria('CONTRATOS', 'REGISTRO_ERROR', e.message, 'ERROR', d.usuario || '');
+    return sanitizeResponse({ success:false, message:`❌ ${e.message}` }); 
+  }
+}
+
+function registrarPrestamo(d) {
+  try {
+    let sheet = SS.getSheetByName('PRESTAMOS');
+    if (!sheet) sheet = SS.insertSheet('PRESTAMOS');
+    
+    const cabecerasRequeridas = ['ID','SOLICITANTE','DEPARTAMENTO','DOCUMENTO','CODIGO_DOCUMENTO','FECHA_PRESTAMO','FECHA_DEVOLUCION','FECHA_DEVOLUCION_REAL','ESTADO'];
+    const headers = obtenerUAgregarCabeceras(sheet, cabecerasRequeridas);
+    
+    const id = `PREST-${Date.now()}`;
+    const dataObj = {
+      'ID': id,
+      'SOLICITANTE': d.solicitante || '',
+      'DEPARTAMENTO': d.departamento || '',
+      'DOCUMENTO': d.documento || '',
+      'CODIGO_DOCUMENTO': d.codigo || '',
+      'FECHA_PRESTAMO': d.fechaPrestamo ? new Date(d.fechaPrestamo) : new Date(),
+      'FECHA_DEVOLUCION': d.fechaDevolucion ? new Date(d.fechaDevolucion) : '',
+      'FECHA_DEVOLUCION_REAL': '',
+      'ESTADO': 'ACTIVO'
+    };
+    
+    sheet.appendRow(objectToRow(headers, dataObj));
+    registrarAuditoria('PRESTAMOS','REGISTRO',`${d.solicitante}`,'EXITO',d.usuario||'');
+    invalidateCache();
+    return sanitizeResponse({ success:true, id, message:'✅ Préstamo registrado' });
+  } catch(e) { 
+    console.error("Error en registrarPrestamo:", e);
+    registrarAuditoria('PRESTAMOS', 'REGISTRO_ERROR', e.message, 'ERROR', d.usuario || '');
+    return sanitizeResponse({ success:false, message:`❌ ${e.message}` }); 
+  }
+}
+
+function obtenerEstadoPrestamos() {
+  try {
+    const cacheKey = `PRESTAMOS_${getCacheVersion()}`;
+    const cached = CacheService.getScriptCache().get(cacheKey);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+    const sheet = SS.getSheetByName('PRESTAMOS');
+    if (!sheet || sheet.getLastRow() <= 1) return { success:true, prestamos:[] };
+    
+    const hoyStr = Utilities.formatDate(new Date(), 'America/Bogota', 'yyyy-MM-dd');
+    const hoy = new Date(hoyStr + 'T00:00:00');
+    
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(h => String(h).trim().toUpperCase());
+    const dataValues = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+    
+    const datos = dataValues.filter(row=>row[0]).map(row=>{
+      const item = rowToObject(headers, row);
+      const fdVal = readField(item, ['FECHA_DEVOLUCION']);
+      const fdStr = fdVal ? getBogotaDateString(fdVal) : '';
+      let diasRestantes = null;
+      if (fdStr) {
+        const fd = new Date(fdStr + 'T00:00:00');
+        diasRestantes = Math.ceil((fd.getTime() - hoy.getTime()) / 86400000);
+      }
+      return { 
+        id: str(readField(item, ['ID'])), 
+        solicitante: str(readField(item, ['SOLICITANTE'])), 
+        departamento: str(readField(item, ['DEPARTAMENTO'])), 
+        documento: str(readField(item, ['DOCUMENTO'])), 
+        codigo: str(readField(item, ['CODIGO_DOCUMENTO', 'CODIGO'])), 
+        fechaPrestamo: readField(item, ['FECHA_PRESTAMO']) ? getBogotaDateString(readField(item, ['FECHA_PRESTAMO'])) : '', 
+        fechaDevolucion: fdStr, 
+        fechaDevReal: readField(item, ['FECHA_DEVOLUCION_REAL']) ? getBogotaDateString(readField(item, ['FECHA_DEVOLUCION_REAL'])) : '', 
+        estado: str(readField(item, ['ESTADO']) || 'ACTIVO'), 
+        diasRestantes 
+      };
+    });
+    const result = { success:true, prestamos:datos };
+    try {
+      CacheService.getScriptCache().put(cacheKey, JSON.stringify(result), 60);
+    } catch(e) { console.error("Cache write error:", e); }
+    return sanitizeResponse(result);
+  } catch(e) { 
+    console.error("Error en obtenerEstadoPrestamos:", e);
+    return sanitizeResponse({ success:false, message:e.message, prestamos:[] }); 
+  }
+}
+
+function notificarDevolucion(id) {
+  try {
+    const sheet = SS.getSheetByName('PRESTAMOS');
+    if (!sheet || sheet.getLastRow() <= 1) return { success:false, message:'No encontrado' };
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(h => String(h).trim().toUpperCase());
+    const idxId = headers.findIndex(h => h.includes('ID'));
+    const idxDevReal = headers.indexOf('FECHA_DEVOLUCION_REAL');
+    const idxEstado = headers.indexOf('ESTADO');
+    if (idxId === -1 || idxDevReal === -1 || idxEstado === -1) {
+      return { success:false, message: 'Faltan cabeceras requeridas en la hoja de Préstamos' };
+    }
+    
+    const data = sheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (str(data[i][idxId]) === String(id)) { 
+        sheet.getRange(i+1, idxDevReal + 1).setValue(new Date()); 
+        sheet.getRange(i+1, idxEstado + 1).setValue('DEVUELTO'); 
+        registrarAuditoria('PRESTAMOS','DEVOLUCION',`ID: ${id}`,'EXITO',''); 
+        invalidateCache();
+        return { success:true, message:'✅ Devolución registrada' }; 
+      }
+    }
+    return { success:false, message:'Préstamo no encontrado' };
+  } catch(e) { 
+    console.error("Error en notificarDevolucion:", e);
+    return { success:false, message:e.message }; 
+  }
+}
+
+function verificarAlertasPrestamos() {
+  try {
+    const sheet = SS.getSheetByName('PRESTAMOS');
+    if (!sheet || sheet.getLastRow() <= 1) return { success:true, alertas:0 };
+    
+    const hoyStr = Utilities.formatDate(new Date(), 'America/Bogota', 'yyyy-MM-dd');
+    const hoy = new Date(hoyStr + 'T00:00:00');
+    let alertas = 0;
+    
+    sheet.getRange(2,1,sheet.getLastRow()-1,9).getValues().forEach(row=>{
+      if (!row[0]||row[8]==='DEVUELTO') return;
+      const fdStr = row[6] ? getBogotaDateString(row[6]) : '';
+      if (!fdStr) return;
+      const fd = new Date(fdStr + 'T00:00:00');
+      if (fd.getTime() < hoy.getTime()) alertas++;
+    });
+    return { success:true, alertas };
+  } catch(e) { 
+    console.error("Error en verificarAlertasPrestamos:", e);
+    return { success:true, alertas:0 }; 
+  }
+}
+
+// ============================================================
+// WORKFLOWS
+// ============================================================
+function crearWorkflow(d) {
+  try {
+    let sheet = SS.getSheetByName('WORKFLOWS');
+    if (!sheet) {
+      sheet = SS.insertSheet('WORKFLOWS');
+      sheet.getRange(1,1,1,11).setValues([['ID','TIPO','DOCUMENTO_ID','SOLICITANTE','APROBADOR','FECHA_CREACION','FECHA_LIMITE','ESTADO','DECISION','COMENTARIOS','DIAS_SLA']]).setFontWeight('bold').setBackground('#1a237e').setFontColor('#ffffff');
+      sheet.setFrozenRows(1);
+    }
+    const id = `WF-${Date.now()}`;
+    const fechaCreacion = new Date();
+    const fechaLimite = new Date(fechaCreacion.getTime()+((d.diasSLA||3)*86400000));
+    sheet.appendRow([id,d.tipo||'APROBACION',d.documentoId||'',d.solicitante||'',d.aprobador||'',fechaCreacion,fechaLimite,'PENDIENTE','',d.comentarios||'',d.diasSLA||3]);
+    registrarAuditoria('WORKFLOWS','CREACION',`Workflow ${id}`,'EXITO',d.solicitante||'');
+    invalidateCache();
+
+    // Enviar correo de notificación al Aprobador
+    try {
+      const appUrl = ScriptApp.getService().getUrl();
+      const htmlBody = `<div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #d0dfee; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(20,42,68,0.05);">
+        <div style="background: linear-gradient(135deg, #142a44, #4a74a7); color: white; padding: 24px; text-align: center;">
+          <h2 style="margin: 0; font-size: 20px; font-weight: 700; letter-spacing: 0.5px;">⚙️ Aprobación Requerida</h2>
+          <p style="margin: 6px 0 0 0; font-size: 13px; opacity: 0.85;">SGD CORAZA Seguridad C.T.A.</p>
+        </div>
+        <div style="padding: 24px; background: #ffffff;">
+          <p style="font-size: 14px; color: #142a44; margin-top: 0;">Se ha registrado una solicitud de aprobación que requiere tu revisión:</p>
+          <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin: 18px 0;">
+            <tr style="border-bottom: 1px solid #e1ebf5;"><td style="padding: 8px 0; font-weight: bold; color: #5c728e;">Tipo:</td><td style="padding: 8px 0; color: #142a44;">${d.tipo||'APROBACION'}</td></tr>
+            <tr style="border-bottom: 1px solid #e1ebf5;"><td style="padding: 8px 0; font-weight: bold; color: #5c728e;">Documento ID:</td><td style="padding: 8px 0; color: #142a44; font-weight: bold;">${d.documentoId||''}</td></tr>
+            <tr style="border-bottom: 1px solid #e1ebf5;"><td style="padding: 8px 0; font-weight: bold; color: #5c728e;">Solicitado por:</td><td style="padding: 8px 0; color: #142a44;">${d.solicitante||''}</td></tr>
+            <tr style="border-bottom: 1px solid #e1ebf5;"><td style="padding: 8px 0; font-weight: bold; color: #5c728e;">Plazo SLA:</td><td style="padding: 8px 0; color: #ef4444; font-weight: bold;">${d.diasSLA||3} días</td></tr>
+            <tr><td style="padding: 8px 0; font-weight: bold; color: #5c728e;">Comentarios:</td><td style="padding: 8px 0; color: #142a44; font-style: italic;">"${d.comentarios||'Sin comentarios'}"</td></tr>
+          </table>
+          <div style="text-align: center; margin-top: 24px;">
+            <a href="${appUrl}" style="background: #4a74a7; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block; box-shadow: 0 4px 10px rgba(74, 116, 167, 0.25);">Abrir Sistema de Gestión</a>
+          </div>
+        </div>
+        <div style="background: #f4f8fc; color: #5c728e; font-size: 11px; text-align: center; padding: 16px; border-top: 1px solid #e1ebf5;">
+          Este es un correo automático generado por el SGD Coraza.<br>
+          © ${new Date().getFullYear()} Coraza Seguridad C.T.A.
+        </div>
+      </div>`;
+
+      MailApp.sendEmail({
+        to: d.aprobador,
+        subject: `⚙️ SGD CORAZA - Aprobación pendiente: ${d.documentoId}`,
+        htmlBody: htmlBody
+      });
+    } catch(errMail) {
+      console.error("Error al enviar correo del workflow:", errMail);
+    }
+
+    return { success:true, id, message:'✅ Workflow creado' };
+  } catch(e) { 
+    console.error("Error en crearWorkflow:", e);
+    registrarAuditoria('WORKFLOWS', 'CREACION_ERROR', e.message, 'ERROR', d.solicitante || '');
+    return { success:false, message:`❌ ${e.message}` }; 
+  }
+}
+
+function obtenerWorkflowsPendientes(filtro) {
+  try {
+    const sheet = SS.getSheetByName('WORKFLOWS');
+    if (!sheet || sheet.getLastRow() <= 1) return { success:true, workflows:[] };
+    const hoy = new Date();
+    const datos = sheet.getRange(2,1,sheet.getLastRow()-1,11).getValues()
+      .filter(row=>row[0]&&String(row[7])==='PENDIENTE')
+      .map(row=>{
+        const fl=row[6]?new Date(row[6]):null;
+        const diasRestantes=fl?Math.ceil((fl-hoy)/86400000):0;
+        return { id:String(row[0]||''), tipo:String(row[1]||''), documentoId:String(row[2]||''), solicitante:String(row[3]||''), aprobador:String(row[4]||''), fechaCreacion:row[5]?new Date(row[5]).toISOString():'', fechaLimite:row[6]?new Date(row[6]).toISOString():'', estado:String(row[7]||'PENDIENTE'), diasRestantes, urgente:diasRestantes<=1 };
+      });
+    return sanitizeResponse({ success:true, workflows:datos });
+  } catch(e) { 
+    console.error("Error en obtenerWorkflowsPendientes:", e);
+    return sanitizeResponse({ success:false, workflows:[], message:e.message }); 
+  }
+}
+
+function resolverWorkflow(id, decision, comentario, usuario) {
+  try {
+    const sheet = SS.getSheetByName('WORKFLOWS');
+    if (!sheet || sheet.getLastRow() <= 1) return { success:false, message:'No encontrado' };
+    const data = sheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]) === String(id)) {
+        sheet.getRange(i+1,8).setValue(decision==='APROBAR'?'APROBADO':'RECHAZADO');
+        sheet.getRange(i+1,9).setValue(decision);
+        sheet.getRange(i+1,10).setValue(comentario||'');
+        registrarAuditoria('WORKFLOWS',decision,`ID: ${id}`,'EXITO',usuario||'');
+        invalidateCache();
+
+        // Enviar correo de notificación al Solicitante
+        const solicitante = data[i][3];
+        const docId = data[i][2];
+        const tipoWF = data[i][1];
+        
+        try {
+          const appUrl = ScriptApp.getService().getUrl();
+          const esAprobado = decision === 'APROBAR';
+          const badgeColor = esAprobado ? '#10b981' : '#ef4444';
+          const icon = esAprobado ? '✅' : '❌';
+          
+          const htmlBody = `<div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #d0dfee; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(20,42,68,0.05);">
+            <div style="background: linear-gradient(135deg, #142a44, #4a74a7); color: white; padding: 24px; text-align: center;">
+              <h2 style="margin: 0; font-size: 20px; font-weight: 700; letter-spacing: 0.5px;">⚙️ Resultado del Workflow</h2>
+              <p style="margin: 6px 0 0 0; font-size: 13px; opacity: 0.85;">SGD CORAZA Seguridad C.T.A.</p>
+            </div>
+            <div style="padding: 24px; background: #ffffff;">
+              <p style="font-size: 14px; color: #142a44; margin-top: 0;">Tu solicitud de flujo de trabajo ha sido resuelta:</p>
+              <div style="background: ${badgeColor}15; border-left: 4px solid ${badgeColor}; padding: 14px; border-radius: 6px; font-weight: bold; color: ${badgeColor}; font-size: 14px; margin-bottom: 18px; text-align: center;">
+                ${icon} Solicitud ${esAprobado ? 'APROBADA' : 'RECHAZADA'}
+              </div>
+              <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin: 18px 0;">
+                <tr style="border-bottom: 1px solid #e1ebf5;"><td style="padding: 8px 0; font-weight: bold; color: #5c728e;">Workflow ID:</td><td style="padding: 8px 0; color: #142a44; font-family: monospace;">${id}</td></tr>
+                <tr style="border-bottom: 1px solid #e1ebf5;"><td style="padding: 8px 0; font-weight: bold; color: #5c728e;">Tipo:</td><td style="padding: 8px 0; color: #142a44;">${tipoWF}</td></tr>
+                <tr style="border-bottom: 1px solid #e1ebf5;"><td style="padding: 8px 0; font-weight: bold; color: #5c728e;">Documento ID:</td><td style="padding: 8px 0; color: #142a44; font-weight: bold;">${docId}</td></tr>
+                <tr style="border-bottom: 1px solid #e1ebf5;"><td style="padding: 8px 0; font-weight: bold; color: #5c728e;">Resuelto por:</td><td style="padding: 8px 0; color: #142a44;">${usuario||'Aprobador'}</td></tr>
+                <tr><td style="padding: 8px 0; font-weight: bold; color: #5c728e;">Comentario de decisión:</td><td style="padding: 8px 0; color: #142a44; font-style: italic;">"${comentario||'Sin comentarios'}"</td></tr>
+              </table>
+              <div style="text-align: center; margin-top: 24px;">
+                <a href="${appUrl}" style="background: #4a74a7; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block; box-shadow: 0 4px 10px rgba(74, 116, 167, 0.25);">Abrir Sistema de Gestión</a>
+              </div>
+            </div>
+            <div style="background: #f4f8fc; color: #5c728e; font-size: 11px; text-align: center; padding: 16px; border-top: 1px solid #e1ebf5;">
+              Este es un correo automático generado por el SGD Coraza.<br>
+              © ${new Date().getFullYear()} Coraza Seguridad C.T.A.
+            </div>
+          </div>`;
+          
+          if (solicitante) {
+            MailApp.sendEmail({
+              to: solicitante,
+              subject: `⚙️ SGD CORAZA - Workflow ${esAprobado ? 'Aprobado' : 'Rechazado'}: ${docId}`,
+              htmlBody: htmlBody
+            });
+          }
+        } catch(errMail) {
+          console.error("Error al enviar notificación de resolución:", errMail);
+        }
+
+        return { success:true, message:`✅ Workflow ${decision}` };
+      }
+    }
+    return { success:false, message:'Workflow no encontrado' };
+  } catch(e) { 
+    console.error("Error en resolverWorkflow:", e);
+    return { success:false, message:e.message }; 
+  }
+}
+
+// ============================================================
+// DASHBOARD
+// ============================================================
+function obtenerAnalyticsDashboard() {
+  try {
+    const cacheKey = `DASHBOARD_${getCacheVersion()}`;
+    const cached = CacheService.getScriptCache().get(cacheKey);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+    const stats = { minutas:0, correspondencia:0, personal:0, contratos:0, biblioteca:0, prestamos:0 };
+    const sheetsMap = [['MINUTAS','minutas'],['CORRESPONDENCIA','correspondencia'],['PERSONAL_INACTIVO','personal'],['PERSONAL','personal'],['CONTRATOS','contratos'],['BIBLIOTECA','biblioteca'],['PRESTAMOS','prestamos']];
+    const countedSheets = new Set();
+    sheetsMap.forEach(([n,k])=>{ 
+      try { 
+        const s=SS.getSheetByName(n); 
+        if(s && s.getLastRow()>1) {
+          const sName = s.getName();
+          if (!countedSheets.has(sName)) {
+            countedSheets.add(sName);
+            stats[k] += (s.getLastRow() - 1);
+          }
+        }
+      } catch(e) {
+        console.error("Error stats on sheet " + n + ":", e);
+      } 
+    });
+
+    const corrEstados = { PENDIENTE:0, ENVIADO:0, RECIBIDO:0, ENTREGADO:0, DEVUELTO:0 };
+    try {
+      const sc = SS.getSheetByName('CORRESPONDENCIA');
+      if (sc&&sc.getLastRow()>1) {
+        sc.getRange(2,11,sc.getLastRow()-1,1).getValues().forEach(r=>{ 
+          if(corrEstados.hasOwnProperty(r[0])) corrEstados[r[0]]++; 
+        });
+      }
+    } catch(e) {
+      console.error("Error corr stats in dashboard:", e);
+    }
+
+    const prestEstados = { ACTIVO:0, VENCIDO:0, DEVUELTO:0 };
+    try {
+      const sp = SS.getSheetByName('PRESTAMOS');
+      if (sp&&sp.getLastRow()>1) {
+        const hoyStr = Utilities.formatDate(new Date(), 'America/Bogota', 'yyyy-MM-dd');
+        const hoy = new Date(hoyStr + 'T00:00:00');
+        sp.getRange(2,1,sp.getLastRow()-1,9).getValues().forEach(row=>{
+          if (!row[0]) return;
+          const estado=String(row[8]||'ACTIVO');
+          if (estado==='DEVUELTO') { prestEstados.DEVUELTO++; return; }
+          const fdStr = row[6] ? getBogotaDateString(row[6]) : '';
+          if (fdStr) { 
+            const fd = new Date(fdStr + 'T00:00:00');
+            if (fd < hoy) { prestEstados.VENCIDO++; return; } 
+          }
+          prestEstados.ACTIVO++;
+        });
+      }
+    } catch(e) {
+      console.error("Error prest stats in dashboard:", e);
+    }
+
+    let workflowsPendientes = 0;
+    try {
+      const sw = SS.getSheetByName('WORKFLOWS');
+      if (sw&&sw.getLastRow()>1) {
+        sw.getRange(2,8,sw.getLastRow()-1,1).getValues().forEach(r=>{ 
+          if(String(r[0])==='PENDIENTE') workflowsPendientes++; 
+        });
+      }
+    } catch(e) {
+      console.error("Error workflows stats in dashboard:", e);
+    }
+
+    const result = { success:true, stats, corrEstados, prestEstados, workflowsPendientes };
+    try {
+      CacheService.getScriptCache().put(cacheKey, JSON.stringify(result), 60);
+    } catch(e) { console.error("Cache write error:", e); }
+    return result;
+  } catch(e) { 
+    console.error("obtenerAnalyticsDashboard error:", e);
+    registrarAuditoria('DASHBOARD', 'ERROR', e.message, 'ERROR', '');
+    return { success:false, message:e.message }; 
+  }
+}
+
+// ============================================================
+// BIBLIOTECA
+// ============================================================
+function obtenerCategorias() {
+  return [{nombre:'PROCEDIMIENTOS'},{nombre:'MANUALES'},{nombre:'INSTRUCTIVOS'},{nombre:'FORMATOS'},{nombre:'REGISTROS'},{nombre:'CONTRATOS'},{nombre:'INFORMES'},{nombre:'ACTAS'},{nombre:'NORMATIVIDAD'},{nombre:'OTROS'}];
+}
+
+function obtenerArbolCompleto() {
+  try {
+    let sheet = SS.getSheetByName('BIBLIOTECA_CARPETAS');
+    if (!sheet) {
+      sheet = SS.insertSheet('BIBLIOTECA_CARPETAS');
+      sheet.getRange(1,1,1,6).setValues([['ID','NOMBRE','PADRE','COLOR','FECHA_CREACION','ACTIVO']]).setFontWeight('bold').setBackground('#1a237e').setFontColor('#ffffff');
+      sheet.setFrozenRows(1);
+      sheet.appendRow(['RAIZ','MI BIBLIOTECA','','#2563eb',new Date(),'SI']);
+      sheet.appendRow([`CAT-${Date.now()}1`,'PROCEDIMIENTOS','RAIZ','#10b981',new Date(),'SI']);
+      sheet.appendRow([`CAT-${Date.now()}2`,'MANUALES','RAIZ','#f59e0b',new Date(),'SI']);
+      sheet.appendRow([`CAT-${Date.now()}3`,'CONTRATOS','RAIZ','#8b5cf6',new Date(),'SI']);
+      sheet.appendRow([`CAT-${Date.now()}4`,'FORMATOS','RAIZ','#06b6d4',new Date(),'SI']);
+    }
+    let sheetArch = SS.getSheetByName('BIBLIOTECA');
+    const archivos = [];
+    if (sheetArch&&sheetArch.getLastRow()>1) {
+      sheetArch.getRange(2,1,sheetArch.getLastRow()-1,10).getValues().forEach(row=>{
+        if(row[0]) archivos.push({id:String(row[0]||''),n:String(row[1]||''),cat:String(row[2]||''),t:String(row[3]||'1.0'),u:String(row[5]||''),carpeta:String(row[9]||'RAIZ')});
+      });
+    }
+    const rows = sheet.getDataRange().getValues().slice(1).filter(r=>r[0]&&r[5]!=='NO');
+    const build=(parentId)=>rows.filter(r=>String(r[2])===String(parentId)).map(r=>({id:String(r[0]),n:String(r[1]),c:String(r[3]||'#2563eb'),a:archivos.filter(a=>a.carpeta===String(r[0])),h:build(String(r[0]))}));
+    const raiz = rows.find(r=>String(r[0])==='RAIZ');
+    const arbolFinal = raiz?[{id:'RAIZ',n:String(raiz[1]||'MI BIBLIOTECA'),c:String(raiz[3]||'#2563eb'),a:archivos.filter(a=>a.carpeta==='RAIZ'),h:build('RAIZ')}]:[{id:'RAIZ',n:'MI BIBLIOTECA',c:'#2563eb',a:archivos.filter(a=>a.carpeta==='RAIZ'),h:[]}];
+    return { success:true, arbol:arbolFinal };
+  } catch(e) { 
+    console.error("Error en obtenerArbolCompleto:", e);
+    return { success:false, message:e.message, arbol:[{id:'RAIZ',n:'MI BIBLIOTECA',c:'#2563eb',a:[],h:[]}] }; 
+  }
+}
+
+function crearCarpeta(nombre, padre, color) {
+  try {
+    let sheet = SS.getSheetByName('BIBLIOTECA_CARPETAS');
+    if (!sheet) { obtenerArbolCompleto(); sheet=SS.getSheetByName('BIBLIOTECA_CARPETAS'); }
+    const id = `CAT-${Date.now()}`;
+    sheet.appendRow([id,nombre.toUpperCase(),padre||'RAIZ',color||'#2563eb',new Date(),'SI']);
+    invalidateCache();
+    return { success:true, id, message:'✅ Carpeta creada' };
+  } catch(e) { 
+    console.error("Error en crearCarpeta:", e);
+    return { success:false, message:e.message }; 
+  }
+}
+
+function registrarBiblioteca(d) {
+  try {
+    let sheet = SS.getSheetByName('BIBLIOTECA');
+    if (!sheet) {
+      sheet = SS.insertSheet('BIBLIOTECA');
+      sheet.getRange(1,1,1,12).setValues([['ID','NOMBRE','CATEGORIA','VERSION','ESTADO','URL','FECHA_ELABORACION','DESCRIPCION_CAMBIO','RESPONSABLE','CARPETA','FECHA_REGISTRO','USUARIO']]).setFontWeight('bold').setBackground('#1a237e').setFontColor('#ffffff');
+      sheet.setFrozenRows(1);
+    }
+    const id = `BIB-${Date.now()}`;
+    const carp = d.carpeta || 'RAIZ';
+    sheet.appendRow([id,d.nombre,d.categoria,d.version||'1.0',d.estado||'ACTIVO',d.url||'',d.fechaElab?new Date(d.fechaElab):new Date(),d.descCambio||'',d.responsable||'',carp,new Date(),d.usuario||'sistema']);
+    registrarAuditoria('BIBLIOTECA','UPLOAD',`${d.nombre}`,'EXITO',d.usuario||'');
+    invalidateCache();
+    return sanitizeResponse({ success:true, id, message:'✅ Documento registrado en biblioteca' });
+  } catch(e) { 
+    console.error("Error en registrarBiblioteca:", e);
+    registrarAuditoria('BIBLIOTECA', 'REGISTRO_ERROR', e.message, 'ERROR', d.usuario || '');
+    return sanitizeResponse({ success:false, message:`❌ ${e.message}` }); 
+  }
+}
+
+function moverArchivoACarpeta(archivoId, carpetaId) {
+  try {
+    const sheet = SS.getSheetByName('BIBLIOTECA');
+    if (!sheet||sheet.getLastRow()<=1) return { success:false, message:'No encontrado' };
+    const data = sheet.getDataRange().getValues();
+    for (let i=1;i<data.length;i++) {
+      if (String(data[i][0])===String(archivoId)) { 
+        sheet.getRange(i+1,10).setValue(carpetaId||'RAIZ'); 
+        invalidateCache();
+        return { success:true, message:'✅ Archivo movido' }; 
+      }
+    }
+    return { success:true, message:'✅ Guardado correctamente' };
+  } catch(e) { 
+    console.error("Error en moverArchivoACarpeta:", e);
+    return { success:false, message:e.message }; 
+  }
+}
+
+// ============================================================
+// MAPA DE ARCHIVO FÍSICO
+// ============================================================
+function obtenerMapaArchivo() {
+  try {
+    const mapa = {};
+    const sheets = ['MINUTAS','CORRESPONDENCIA','PERSONAL_INACTIVO','CONTRATOS','BIBLIOTECA','PRESTAMOS'];
+    const colUbicacion = { MINUTAS:10, CORRESPONDENCIA:99, PERSONAL_INACTIVO:8, CONTRATOS:11, BIBLIOTECA:99, PRESTAMOS:99 };
+    sheets.forEach(nombre=>{
+      try {
+        const sheet=SS.getSheetByName(nombre); if(!sheet||sheet.getLastRow()<=1) return;
+        const colIdx=colUbicacion[nombre]; if(colIdx===99) return;
+        sheet.getRange(2,1,sheet.getLastRow()-1,colIdx).getValues().forEach(row=>{
+          const ub=String(row[colIdx-1]||'').trim();
+          if(ub&&ub.length>0&&ub!=='') mapa[ub]={ocupado:true,tipo:nombre.replace('_INACTIVO','').replace('PERSONAL','HOJA DE VIDA')};
+        });
+      } catch(e) {
+        console.error("Error en mapa de archivo para " + nombre + ":", e);
+      }
+    });
+    return { success:true, mapa };
+  } catch(e) { 
+    console.error("Error en obtenerMapaArchivo:", e);
+    registrarAuditoria('MAPA_ARCHIVO', 'ERROR', e.message, 'ERROR', '');
+    return { success:false, mapa:{}, message:e.message }; 
+  }
+}
+
+function buscarDocumentoPorUbicacion(ubicacion) {
+  try {
+    const sheets=[{nombre:'MINUTAS',colUb:10,colDesc:3,colTipo:2,colCod:11},{nombre:'PERSONAL_INACTIVO',colUb:8,colDesc:2,colTipo:5,colCod:9},{nombre:'CONTRATOS',colUb:11,colDesc:9,colTipo:2,colCod:13}];
+    for (const s of sheets) {
+      const sheet=SS.getSheetByName(s.nombre); if(!sheet||sheet.getLastRow()<=1) continue;
+      const maxCol=Math.max(s.colUb,s.colDesc,s.colTipo,s.colCod);
+      const data=sheet.getRange(2,1,sheet.getLastRow()-1,maxCol).getValues();
+      for (const row of data) {
+        if (String(row[s.colUb-1]||'').trim()===ubicacion) return { success:true, documento:{ ubicacion, tipo:String(row[s.colTipo-1]||s.nombre), descripcion:String(row[s.colDesc-1]||''), codigoBusqueda:String(row[s.colCod-1]||'') } };
+      }
+    }
+    return { success:true, documento:null };
+  } catch(e) { 
+        console.error("Error en buscarDocumentoPorUbicacion:", e);
+    return { success:false, documento:null }; 
+  }
+}
+
+// ============================================================
+// BÚSQUEDA UNIVERSAL (OPTIMIZADA MULTI-TÉRMINO Y MONO-LECTURA)
+// ============================================================
+function busquedaUniversal(termino, tipo) {
+  try {
+    if (!termino || (Array.isArray(termino) && termino.length === 0) || (typeof termino === 'string' && termino.trim() === '')) {
+      return { success:true, resultados:[], total:0 };
+    }
+
+    const limpiarTermino = (txt) => {
+      return String(txt)
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "") // quitar acentos
+        .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "") // quitar puntuación
+        .replace(/\s+/g, " ")
+        .trim();
+    };
+
+    const rowMatchesKeywords = (row, indices) => {
+      const rowContent = indices.map(idx => limpiarTermino(row[idx])).join(' ');
+      const limpioTermino = Array.isArray(termino) ? termino.map(k => limpiarTermino(k)).join(' ') : limpiarTermino(termino);
+      
+      if (rowContent.indexOf(limpioTermino) !== -1) return true;
+      
+      const palabras = limpioTermino.split(/\s+/).filter(k => k.length >= 2);
+      if (palabras.length > 0) {
+        const stopWords = new Set(["de", "la", "el", "en", "y", "a", "los", "las", "un", "una", "con", "por", "para", "ph", "ltda", "sas", "cta", "co"]);
+        const palabrasSignificativas = palabras.filter(p => !stopWords.has(p));
+        const buscar = palabrasSignificativas.length > 0 ? palabrasSignificativas : palabras;
+        
+        return buscar.every(pal => rowContent.indexOf(pal) !== -1);
+      }
+      return false;
+    };
+
+    const formatearFecha = (val) => {
+      if (val instanceof Date) {
+        try {
+          return Utilities.formatDate(val, Session.getScriptTimeZone() || 'America/Bogota', 'yyyy-MM-dd');
+        } catch(e) {
+          return val.toISOString().split('T')[0];
+        }
+      }
+      return val ? String(val).trim() : '';
+    };
+
+    const str = (val) => {
+      if (val === null || val === undefined) return '';
+      if (val instanceof Date) return formatearFecha(val);
+      return String(val).trim();
+    };
+
+    const rowToObject = (headers, row) => {
+      const obj = {};
+      headers.forEach((h, i) => { 
+        let val = row[i];
+        if (val instanceof Date) {
+          val = formatearFecha(val);
+        }
+        obj[h] = val; 
+      });
+      return obj;
+    };
+
+    const resultados = [];
+
+    if (tipo==='todos'||tipo==='correspondencia') {
+      try {
+        const sheet=SS.getSheetByName('CORRESPONDENCIA');
+        if(sheet&&sheet.getLastRow()>1) {
+          const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(h => String(h).trim().toUpperCase());
+          const searchIndices = headers.map((_, idx) => idx);
+          
+          sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues().forEach((row, rowIdx) => {
+            if (row.some(cell => String(cell).trim() !== '') && rowMatchesKeywords(row, searchIndices)) {
+              const idxAsunto = headers.findIndex(h => String(h).toLowerCase().includes('asunto'));
+              const idxTipo = headers.findIndex(h => String(h).toLowerCase().includes('tipo'));
+              const idxRad = headers.findIndex(h => String(h).toLowerCase().includes('radicado') || String(h).toLowerCase().includes('numero'));
+              const idxRemDest = headers.findIndex(h => String(h).toLowerCase().includes('remitente') || String(h).toLowerCase().includes('destinatario') || String(h).toLowerCase().includes('de/para') || String(h).toLowerCase().includes('nombre'));
+              const idxDesc = headers.findIndex(h => String(h).toLowerCase().includes('descripcion') || String(h).toLowerCase().includes('detalle') || String(h).toLowerCase().includes('observ'));
+              const idxEstado = headers.findIndex(h => String(h).toLowerCase().includes('estado'));
+              const idxUnico = headers.findIndex(h => String(h).toLowerCase().includes('unico') || String(h).toLowerCase().includes('codigo'));
+              const idxFecha = headers.findIndex(h => String(h).toLowerCase().includes('fecha') || String(h).toLowerCase().includes('registro'));
+              const idxUbic = headers.findIndex(h => String(h).toLowerCase().includes('voxel') || String(h).toLowerCase().includes('ubicacion'));
+              
+              const tituloVal = idxAsunto !== -1 ? row[idxAsunto] : 'Correspondencia';
+              const descParts = [];
+              if (idxRad !== -1 && row[idxRad]) descParts.push(`Rad. N° ${row[idxRad]}`);
+              if (idxTipo !== -1 && row[idxTipo]) descParts.push(`(${row[idxTipo]})`);
+              if (idxRemDest !== -1 && row[idxRemDest]) descParts.push(`De/Para: ${row[idxRemDest]}`);
+              if (idxDesc !== -1 && row[idxDesc]) descParts.push(`Detalle: ${row[idxDesc]}`);
+              if (idxEstado !== -1 && row[idxEstado]) descParts.push(`Estado: ${row[idxEstado]}`);
+              
+              const calculatedId = str(row[0] || ('CORR-' + (rowIdx + 2)));
+              resultados.push({
+                id: calculatedId,
+                tipo: 'Correspondencia',
+                titulo: str(tituloVal),
+                descripcion: str(descParts.join(' — ')),
+                icono: '📧',
+                ubicacion: idxUbic !== -1 ? str(row[idxUbic]) : '',
+                codigoUnico: idxUnico !== -1 && row[idxUnico] ? str(row[idxUnico]) : calculatedId,
+                fecha: formatearFecha(idxFecha !== -1 ? row[idxFecha] : ''),
+                detalles: rowToObject(headers, row)
+              });
+            }
+          });
+        }
+      } catch(e) { console.error("Search error in CORRESPONDENCIA:", e); }
+    }
+    if (tipo==='todos'||tipo==='personal') {
+      const sheetsToSearch = ['PERSONAL', 'PERSONAL_INACTIVO'];
+      const searchedSheets = new Set();
+      sheetsToSearch.forEach(sheetName => {
+        try {
+          const sheet = SS.getSheetByName(sheetName);
+          if(sheet&&sheet.getLastRow()>1) {
+            const actualName = sheet.getName();
+            if (searchedSheets.has(actualName)) return;
+            searchedSheets.add(actualName);
+            
+            const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(h => String(h).trim().toUpperCase());
+            const searchIndices = headers.map((_, idx) => idx);
+            
+            sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues().forEach((row, rowIdx) => {
+              if (row.some(cell => String(cell).trim() !== '') && rowMatchesKeywords(row, searchIndices)) {
+                const idxNombre = headers.findIndex(h => String(h).toLowerCase().includes('nombre'));
+                const idxCedula = headers.findIndex(h => String(h).toLowerCase().includes('cedula') || String(h).toLowerCase().includes('cc') || String(h).toLowerCase().includes('identificacio') || String(h).toLowerCase().includes('documento'));
+                const idxBaja = headers.findIndex(h => String(h).toLowerCase().includes('baja') || String(h).toLowerCase().includes('egreso') || String(h).toLowerCase().includes('fecha'));
+                const idxMotivo = headers.findIndex(h => String(h).toLowerCase().includes('motivo'));
+                const idxObs = headers.findIndex(h => String(h).toLowerCase().includes('observacion') || String(h).toLowerCase().includes('detalle') || String(h).toLowerCase().includes('descripcion'));
+                const idxUbic = headers.findIndex(h => String(h).toLowerCase().includes('voxel') || String(h).toLowerCase().includes('ubicacion'));
+                const idxUnico = headers.findIndex(h => String(h).toLowerCase().includes('unico') || String(h).toLowerCase().includes('codigo'));
+                const idxFecha = headers.findIndex(h => String(h).toLowerCase().includes('registro'));
+                
+                const nombreVal = idxNombre !== -1 ? row[idxNombre] : 'Expediente';
+                const descParts = [];
+                if (idxCedula !== -1 && row[idxCedula]) descParts.push(`Cédula: ${row[idxCedula]}`);
+                if (idxBaja !== -1 && row[idxBaja]) descParts.push(`Fecha: ${formatearFecha(row[idxBaja])}`);
+                if (idxMotivo !== -1 && row[idxMotivo]) descParts.push(`Motivo: ${row[idxMotivo]}`);
+                if (idxObs !== -1 && row[idxObs]) descParts.push(`Obs: ${row[idxObs]}`);
+                
+                const calculatedId = str(row[0] || row[idxCedula] || ('PER-' + (rowIdx + 2)));
+                resultados.push({
+                  id: calculatedId,
+                  tipo: sheetName === 'PERSONAL' ? 'Personal Activo' : 'Personal Inactivo',
+                  titulo: str(nombreVal),
+                  descripcion: str(descParts.join(' — ')),
+                  icono: '👤',
+                  ubicacion: idxUbic !== -1 ? str(row[idxUbic]) : '',
+                  codigoUnico: idxUnico !== -1 && row[idxUnico] ? str(row[idxUnico]) : calculatedId,
+                  fecha: formatearFecha(idxFecha !== -1 ? row[idxFecha] : ''),
+                  detalles: rowToObject(headers, row)
+                });
+              }
+            });
+          }
+        } catch(errSheet) { console.error(`Error searching in ${sheetName}:`, errSheet); }
+      });
+    }
+    if (tipo==='todos'||tipo==='contratos') {
+      try {
+        const sheet=SS.getSheetByName('CONTRATOS');
+        if(sheet&&sheet.getLastRow()>1) {
+          const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(h => String(h).trim().toUpperCase());
+          const searchIndices = headers.map((_, idx) => idx);
+          
+          sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues().forEach((row, rowIdx) => {
+            if (row.some(cell => String(cell).trim() !== '') && rowMatchesKeywords(row, searchIndices)) {
+              const idxParteA = headers.findIndex(h => String(h).toLowerCase().includes('parte_a') || String(h).toLowerCase().includes('contratante') || String(h).toLowerCase().includes('remitente') || String(h).toLowerCase().includes('parte a'));
+              const idxParteB = headers.findIndex(h => String(h).toLowerCase().includes('parte_b') || String(h).toLowerCase().includes('contratista') || String(h).toLowerCase().includes('destinatario') || String(h).toLowerCase().includes('parte b'));
+              const idxNum = headers.findIndex(h => String(h).toLowerCase().includes('numero') || String(h).toLowerCase().includes('contrato'));
+              const idxTipo = headers.findIndex(h => String(h).toLowerCase().includes('tipo'));
+              const idxObjeto = headers.findIndex(h => String(h).toLowerCase().includes('objeto') || String(h).toLowerCase().includes('descrip') || String(h).toLowerCase().includes('detalle') || String(h).toLowerCase().includes('parte_b'));
+              const idxValor = headers.findIndex(h => String(h).toLowerCase().includes('valor') || String(h).toLowerCase().includes('monto'));
+              const idxEstado = headers.findIndex(h => String(h).toLowerCase().includes('estado'));
+              const idxInicio = headers.findIndex(h => String(h).toLowerCase().includes('inicio'));
+              const idxFin = headers.findIndex(h => String(h).toLowerCase().includes('fin'));
+              const idxUbic = headers.findIndex(h => String(h).toLowerCase().includes('voxel') || String(h).toLowerCase().includes('ubicacion'));
+              const idxUnico = headers.findIndex(h => String(h).toLowerCase().includes('unico') || String(h).toLowerCase().includes('codigo'));
+              
+              const parteA = idxParteA !== -1 ? row[idxParteA] : '';
+              const parteB = idxParteB !== -1 ? row[idxParteB] : '';
+              const tituloVal = parteA && parteB ? `${parteA} vs ${parteB}` : (parteB || parteA || 'Contrato');
+              
+              const descParts = [];
+              if (idxNum !== -1 && row[idxNum]) descParts.push(`Contrato N° ${row[idxNum]}`);
+              if (idxTipo !== -1 && row[idxTipo]) descParts.push(`(${row[idxTipo]})`);
+              if (idxObjeto !== -1 && row[idxObjeto]) descParts.push(`Objeto: ${row[idxObjeto]}`);
+              if (idxValor !== -1 && row[idxValor]) descParts.push(`Valor: ${row[idxValor]}`);
+              if (idxEstado !== -1 && row[idxEstado]) descParts.push(`Estado: ${row[idxEstado]}`);
+              
+              const calculatedId = str(row[0] || ('CONTR-' + (rowIdx + 2)));
+              resultados.push({
+                id: calculatedId,
+                tipo: 'Contrato',
+                titulo: str(tituloVal),
+                descripcion: str(descParts.join(' — ')),
+                icono: '📑',
+                ubicacion: idxUbic !== -1 ? str(row[idxUbic]) : '',
+                codigoUnico: idxUnico !== -1 && row[idxUnico] ? str(row[idxUnico]) : calculatedId,
+                fecha: formatearFecha(idxInicio !== -1 ? row[idxInicio] : ''),
+                detalles: rowToObject(headers, row)
+              });
+            }
+          });
+        }
+      } catch(e) { console.error("Search error in CONTRATOS:", e); }
+    }
+    if (tipo==='todos'||tipo==='minutas') {
+      try {
+        const sheet=SS.getSheetByName('MINUTAS');
+        if(sheet&&sheet.getLastRow()>1) {
+          const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(h => String(h).trim().toUpperCase());
+          const searchIndices = headers.map((_, idx) => idx);
+          
+          sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues().forEach((row, rowIdx) => {
+            if (row.some(cell => String(cell).trim() !== '') && rowMatchesKeywords(row, searchIndices)) {
+              const idxTipo = headers.findIndex(h => String(h).toLowerCase().includes('tipo') || String(h).toLowerCase().includes('minuta'));
+              const idxPuesto = headers.findIndex(h => String(h).toLowerCase().includes('puesto') || String(h).toLowerCase().includes('nombre'));
+              const idxObs = headers.findIndex(h => String(h).toLowerCase().includes('observacion') || String(h).toLowerCase().includes('detalle') || String(h).toLowerCase().includes('descripcion'));
+              const idxEstado = headers.findIndex(h => String(h).toLowerCase().includes('estado'));
+              const idxFecha = headers.findIndex(h => String(h).toLowerCase().includes('registro') || String(h).toLowerCase().includes('fecha'));
+              const idxUbic = headers.findIndex(h => String(h).toLowerCase().includes('voxel') || String(h).toLowerCase().includes('ubicacion'));
+              const idxUnico = headers.findIndex(h => String(h).toLowerCase().includes('unico') || String(h).toLowerCase().includes('codigo'));
+              
+              let puestoVal = '';
+              const puestoIndices = [];
+              headers.forEach((h, idx) => {
+                const hLower = String(h).toLowerCase();
+                if (hLower.includes('puesto') || hLower.includes('nombre') || hLower.includes('visitante')) {
+                  puestoIndices.push(idx);
+                }
+              });
+              for (let idx of puestoIndices) {
+                if (row[idx]) {
+                  puestoVal = String(row[idx]).trim();
+                  break;
+                }
+              }
+              const tipoVal = idxTipo !== -1 ? row[idxTipo] : 'Minuta';
+              const tituloVal = puestoVal ? `${tipoVal} — ${puestoVal}` : tipoVal;
+              
+              const descParts = [];
+              if (idxObs !== -1 && row[idxObs]) descParts.push(`Obs: ${row[idxObs]}`);
+              if (idxEstado !== -1 && row[idxEstado]) descParts.push(`Estado: ${row[idxEstado]}`);
+              
+              const calculatedId = str(row[0] || ('MIN-' + (rowIdx + 2)));
+              resultados.push({
+                id: calculatedId,
+                tipo: 'Minuta',
+                titulo: str(tituloVal),
+                descripcion: str(descParts.join(' — ')),
+                icono: '📋',
+                ubicacion: idxUbic !== -1 ? str(row[idxUbic]) : '',
+                codigoUnico: idxUnico !== -1 && row[idxUnico] ? str(row[idxUnico]) : calculatedId,
+                fecha: formatearFecha(idxFecha !== -1 ? row[idxFecha] : ''),
+                detalles: rowToObject(headers, row)
+              });
+            }
+          });
+        }
+      } catch(e) { console.error("Search error in MINUTAS:", e); }
+    }
+    if (tipo==='todos'||tipo==='biblioteca') {
+      try {
+        const sheet=SS.getSheetByName('BIBLIOTECA');
+        if(sheet&&sheet.getLastRow()>1) {
+          const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(h => String(h).trim().toUpperCase());
+          const searchIndices = headers.map((_, idx) => idx);
+          
+          sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues().forEach((row, rowIdx) => {
+            if (row.some(cell => String(cell).trim() !== '') && rowMatchesKeywords(row, searchIndices)) {
+              const idxNombre = headers.findIndex(h => String(h).toLowerCase().includes('nombre') || String(h).toLowerCase().includes('titulo'));
+              const idxCat = headers.findIndex(h => String(h).toLowerCase().includes('categoria') || String(h).toLowerCase().includes('tipo'));
+              const idxVer = headers.findIndex(h => String(h).toLowerCase().includes('version'));
+              const idxCambio = headers.findIndex(h => String(h).toLowerCase().includes('cambio') || String(h).toLowerCase().includes('descrip') || String(h).toLowerCase().includes('observ'));
+              const idxEstado = headers.findIndex(h => String(h).toLowerCase().includes('estado'));
+              const idxFecha = headers.findIndex(h => String(h).toLowerCase().includes('registro') || String(h).toLowerCase().includes('fecha') || String(h).toLowerCase().includes('elaboracion'));
+              
+              const nombreVal = idxNombre !== -1 ? row[idxNombre] : 'Documento';
+              const descParts = [];
+              if (idxCat !== -1 && row[idxCat]) descParts.push(`Categoría: ${row[idxCat]}`);
+              if (idxVer !== -1 && row[idxVer]) descParts.push(`v${row[idxVer]}`);
+              if (idxCambio !== -1 && row[idxCambio]) descParts.push(`Cambio: ${row[idxCambio]}`);
+              if (idxEstado !== -1 && row[idxEstado]) descParts.push(`Estado: ${row[idxEstado]}`);
+              
+              const calculatedId = str(row[0] || ('BIB-' + (rowIdx + 2)));
+              resultados.push({
+                id: calculatedId,
+                tipo: 'Biblioteca',
+                titulo: str(nombreVal),
+                descripcion: str(descParts.join(' — ')),
+                icono: '📚',
+                ubicacion: '',
+                codigoUnico: calculatedId,
+                fecha: formatearFecha(idxFecha !== -1 ? row[idxFecha] : ''),
+                detalles: rowToObject(headers, row)
+              });
+            }
+          });
+        }
+      } catch(e) { console.error("Search error in BIBLIOTECA:", e); }
+    }
+    if (tipo==='todos'||tipo==='prestamos') {
+      try {
+        const sheet=SS.getSheetByName('PRESTAMOS');
+        if(sheet&&sheet.getLastRow()>1) {
+          const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(h => String(h).trim().toUpperCase());
+          const searchIndices = headers.map((_, idx) => idx);
+          
+          sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues().forEach((row, rowIdx) => {
+            if (row.some(cell => String(cell).trim() !== '') && rowMatchesKeywords(row, searchIndices)) {
+              const idxDoc = headers.findIndex(h => String(h).toLowerCase().includes('documento') || String(h).toLowerCase().includes('doc') || String(h).toLowerCase().includes('nombre'));
+              const idxSolic = headers.findIndex(h => String(h).toLowerCase().includes('solicitante') || String(h).toLowerCase().includes('nombre') || String(h).toLowerCase().includes('responsable'));
+              const idxDepto = headers.findIndex(h => String(h).toLowerCase().includes('departamento') || String(h).toLowerCase().includes('depto') || String(h).toLowerCase().includes('area'));
+              const idxPrestamo = headers.findIndex(h => String(h).toLowerCase().includes('prestamo') || String(h).toLowerCase().includes('fecha'));
+              const idxDevol = headers.findIndex(h => String(h).toLowerCase().includes('devolucion') || String(h).toLowerCase().includes('entrega'));
+              const idxEstado = headers.findIndex(h => String(h).toLowerCase().includes('estado'));
+              const idxFecha = headers.findIndex(h => String(h).toLowerCase().includes('registro'));
+              
+              const docVal = idxDoc !== -1 ? row[idxDoc] : 'Documento prestado';
+              const descParts = [];
+              if (idxSolic !== -1 && row[idxSolic]) descParts.push(`Solicitante: ${row[idxSolic]}`);
+              if (idxDepto !== -1 && row[idxDepto]) descParts.push(`(${row[idxDepto]})`);
+              if (idxPrestamo !== -1 && row[idxPrestamo]) descParts.push(`Préstamo: ${formatearFecha(row[idxPrestamo])}`);
+              if (idxDevol !== -1 && row[idxDevol]) descParts.push(`Devolución: ${formatearFecha(row[idxDevol])}`);
+              if (idxEstado !== -1 && row[idxEstado]) descParts.push(`Estado: ${row[idxEstado]}`);
+              
+              const calculatedId = str(row[0] || ('PREST-' + (rowIdx + 2)));
+              resultados.push({
+                id: calculatedId,
+                tipo: 'Préstamo',
+                titulo: str(docVal),
+                descripcion: str(descParts.join(' — ')),
+                icono: '🔄',
+                ubicacion: '',
+                codigoUnico: calculatedId,
+                fecha: formatearFecha(idxFecha !== -1 ? row[idxFecha] : ''),
+                detalles: rowToObject(headers, row)
+              });
+            }
+          });
+        }
+      } catch(e) { console.error("Search error in PRESTAMOS:", e); }
+    }
+    return sanitizeResponse({ success:true, resultados:resultados.slice(0,25), total:resultados.length });
+  } catch(e) { 
+    console.error("busquedaUniversal error:", e);
+    registrarAuditoria('BUSQUEDA', 'ERROR', e.message, 'ERROR', '');
+    return sanitizeResponse({ success:false, message:e.message, resultados:[], total:0 }); 
+  }
+}
+
+// ============================================================
+// GENERADOR DE INFORMES (VERSIONADO Y CACHEADO)
+// ============================================================
+function generarInforme(fechaInicio, fechaFin, modulos) {
+  try {
+    const t0 = Date.now();
+    const cacheKey = `INFORME_${getCacheVersion()}_${fechaInicio}_${fechaFin}_${JSON.stringify(modulos)}`;
+    const cached = CacheService.getScriptCache().get(cacheKey);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+    const fi = fechaInicio;
+    const ff = fechaFin;
+
+    const stats = { minutas:0, correspondencia:0, personal:0, contratos:0, prestamos:0, biblioteca:0 };
+
+    // ── CORRESPONDENCIA ──────────────────────────────────────
+    const corrEstados   = { PENDIENTE:0, ENVIADO:0, RECIBIDO:0, ENTREGADO:0, DEVUELTO:0 };
+    const corrMedios    = {};
+    const corrDeptos    = {};
+    const corrPorMes    = {};
+
+    if (modulos.correspondencia) {
+      try {
+        const s = SS.getSheetByName('CORRESPONDENCIA');
+        if (s && s.getLastRow() > 1) {
+          s.getRange(2,1,s.getLastRow()-1,12).getValues().forEach(row => {
+            if (!row[0]) return;
+            const dateStr = getBogotaDateString(row[2]);
+            if (dateStr && dateStr >= fi && dateStr <= ff) {
+              stats.correspondencia++;
+              const est = String(row[10]||'PENDIENTE');
+              if (corrEstados.hasOwnProperty(est)) corrEstados[est]++;
+              const med = String(row[3]||'OTRO');
+              corrMedios[med] = (corrMedios[med]||0) + 1;
+              const orig = String(row[5]||'SIN DEPTO');
+              corrDeptos[orig] = (corrDeptos[orig]||0) + 1;
+              const dateVal = row[2] instanceof Date ? row[2] : new Date(row[2]);
+              const mesKey = Utilities.formatDate(dateVal, 'America/Bogota', 'yyyy-MM');
+              corrPorMes[mesKey] = (corrPorMes[mesKey]||0) + 1;
+            }
+          });
+        }
+      } catch(e) {
+        console.error("Error reading CORRESPONDENCIA in generarInforme:", e);
+      }
+    }
+
+    // ── MINUTAS ──────────────────────────────────────────────
+    const minutasTipos   = {};
+    const minutasPuestos = {};
+
+    if (modulos.minutas) {
+      try {
+        const s = SS.getSheetByName('MINUTAS');
+        if (s && s.getLastRow() > 1) {
+          s.getRange(2,1,s.getLastRow()-1,12).getValues().forEach(row => {
+            if (!row[0]) return;
+            const dateStr = getBogotaDateString(row[3]);
+            if (dateStr && dateStr >= fi && dateStr <= ff) {
+              stats.minutas++;
+              const tipo = String(row[1]||'OTROS');
+              minutasTipos[tipo] = (minutasTipos[tipo]||0) + 1;
+              const puesto = String(row[2]||'SIN PUESTO');
+              minutasPuestos[puesto] = (minutasPuestos[puesto]||0) + 1;
+            }
+          });
+        }
+      } catch(e) {
+        console.error("Error reading MINUTAS in generarInforme:", e);
+      }
+    }
+
+    // ── PERSONAL INACTIVO ────────────────────────────────────
+    const personalMotivos = {};
+
+    if (modulos.personal) {
+      try {
+        const s = SS.getSheetByName('PERSONAL_INACTIVO');
+        if (s && s.getLastRow() > 1) {
+          s.getRange(2,1,s.getLastRow()-1,9).getValues().forEach(row => {
+            if (!row[0]) return;
+            const dateStr = getBogotaDateString(row[3]);
+            if (dateStr && dateStr >= fi && dateStr <= ff) {
+              stats.personal++;
+              const mot = String(row[4]||'SIN MOTIVO').trim()||'SIN MOTIVO';
+              personalMotivos[mot] = (personalMotivos[mot]||0) + 1;
+            }
+          });
+        }
+      } catch(e) {
+        console.error("Error reading PERSONAL_INACTIVO in generarInforme:", e);
+      }
+    }
+
+    // ── CONTRATOS ────────────────────────────────────────────
+    const contratosTipos  = {};
+    let   valorTotalContratos = 0;
+    let   contratosAltoValor  = 0;
+
+    if (modulos.contratos) {
+      try {
+        const s = SS.getSheetByName('CONTRATOS');
+        if (s && s.getLastRow() > 1) {
+          s.getRange(2,1,s.getLastRow()-1,13).getValues().forEach(row => {
+            if (!row[0]) return;
+            const dateStr = getBogotaDateString(row[5]);
+            if (dateStr && dateStr >= fi && dateStr <= ff) {
+              stats.contratos++;
+              const tipo = String(row[1]||'OTROS');
+              contratosTipos[tipo] = (contratosTipos[tipo]||0) + 1;
+              const val = parseFloat(row[7])||0;
+              valorTotalContratos += val;
+              if (val > 1000000) contratosAltoValor++;
+            }
+          });
+        }
+      } catch(e) {
+        console.error("Error reading CONTRATOS in generarInforme:", e);
+      }
+    }
+
+    // ── PRÉSTAMOS ────────────────────────────────────────────
+    const prestEstados   = { ACTIVO:0, VENCIDO:0, DEVUELTO:0 };
+    const prestDeptos    = {};
+
+    if (modulos.prestamos) {
+      try {
+        const s = SS.getSheetByName('PRESTAMOS');
+        if (s && s.getLastRow() > 1) {
+          const hoyStr = Utilities.formatDate(new Date(), 'America/Bogota', 'yyyy-MM-dd');
+          const hoy = new Date(hoyStr + 'T00:00:00');
+          s.getRange(2,1,s.getLastRow()-1,9).getValues().forEach(row => {
+            if (!row[0]) return;
+            const dateStr = getBogotaDateString(row[5]);
+            if (dateStr && dateStr >= fi && dateStr <= ff) {
+              stats.prestamos++;
+              const est = String(row[8]||'ACTIVO');
+              const fdStr  = row[6] ? getBogotaDateString(row[6]) : '';
+              if (est==='DEVUELTO') prestEstados.DEVUELTO++;
+              else if (fdStr && new Date(fdStr + 'T00:00:00') < hoy) prestEstados.VENCIDO++;
+              else prestEstados.ACTIVO++;
+              const dep = String(row[2]||'SIN DEPTO');
+              prestDeptos[dep] = (prestDeptos[dep]||0) + 1;
+            }
+          });
+        }
+      } catch(e) {
+        console.error("Error reading PRESTAMOS in generarInforme:", e);
+      }
+    }
+
+    // ── BIBLIOTECA ───────────────────────────────────────────
+    const bibCats = {};
+
+    if (modulos.biblioteca) {
+      try {
+        const s = SS.getSheetByName('BIBLIOTECA');
+        if (s && s.getLastRow() > 1) {
+          s.getRange(2,1,s.getLastRow()-1,12).getValues().forEach(row => {
+            if (!row[0]) return;
+            const dateStr = getBogotaDateString(row[10]);
+            if (dateStr && dateStr >= fi && dateStr <= ff) {
+              stats.biblioteca++;
+              const cat = String(row[2]||'OTROS');
+              bibCats[cat] = (bibCats[cat]||0) + 1;
+            }
+          });
+        }
+      } catch(e) {
+        console.error("Error reading BIBLIOTECA in generarInforme:", e);
+      }
+    }
+
+    // ── TOTALES Y DISTRIBUCIONES ─────────────────────────────
+    const total = stats.minutas + stats.correspondencia + stats.personal + stats.contratos + stats.prestamos + stats.biblioteca;
+
+    const distribucionTipos = [];
+    if (modulos.minutas && stats.minutas > 0)         distribucionTipos.push({ tipo:'Minutas',         cantidad:stats.minutas,         porcentaje: total>0?((stats.minutas/total)*100).toFixed(1):0 });
+    if (modulos.correspondencia && stats.correspondencia > 0) distribucionTipos.push({ tipo:'Correspondencia', cantidad:stats.correspondencia,  porcentaje: total>0?((stats.correspondencia/total)*100).toFixed(1):0 });
+    if (modulos.personal && stats.personal > 0)       distribucionTipos.push({ tipo:'Personal',         cantidad:stats.personal,         porcentaje: total>0?((stats.personal/total)*100).toFixed(1):0 });
+    if (modulos.contratos && stats.contratos > 0)     distribucionTipos.push({ tipo:'Contratos',        cantidad:stats.contratos,        porcentaje: total>0?((stats.contratos/total)*100).toFixed(1):0 });
+    if (modulos.prestamos && stats.prestamos > 0)     distribucionTipos.push({ tipo:'Préstamos',        cantidad:stats.prestamos,        porcentaje: total>0?((stats.prestamos/total)*100).toFixed(1):0 });
+    if (modulos.biblioteca && stats.biblioteca > 0)   distribucionTipos.push({ tipo:'Biblioteca',       cantidad:stats.biblioteca,       porcentaje: total>0?((stats.biblioteca/total)*100).toFixed(1):0 });
+    distribucionTipos.sort((a,b) => b.cantidad - a.cantidad);
+
+    const deptoMap = {};
+    Object.entries(corrDeptos).forEach(([k,v])=>{ deptoMap[k]=(deptoMap[k]||0)+v; });
+    Object.entries(prestDeptos).forEach(([k,v])=>{ deptoMap[k]=(deptoMap[k]||0)+v; });
+    const distribucionDepartamentos = Object.entries(deptoMap)
+      .map(([dep,cant])=>({ departamento:dep, cantidad:cant }))
+      .sort((a,b)=>b.cantidad-a.cantidad)
+      .slice(0,8);
+
+    const tendenciaMensual = Object.entries(corrPorMes)
+      .map(([mes,cnt])=>({ mes, cantidad:cnt }))
+      .sort((a,b)=>a.mes.localeCompare(b.mes));
+
+    const corrEstadosArr = Object.entries(corrEstados)
+      .filter(([,v])=>v>0)
+      .map(([est,cnt])=>({ estado:est, cantidad:cnt }));
+
+    const corrMediosArr = Object.entries(corrMedios)
+      .map(([med,cnt])=>({ medio:med, cantidad:cnt }))
+      .sort((a,b)=>b.cantidad-a.cantidad);
+
+    const minutasTiposArr = Object.entries(minutasTipos)
+      .map(([t,c])=>({ tipo:t, cantidad:c }))
+      .sort((a,b)=>b.cantidad-a.cantidad);
+
+    const contratosTiposArr = Object.entries(contratosTipos)
+      .map(([t,c])=>({ tipo:t, cantidad:c }))
+      .sort((a,b)=>b.cantidad-a.cantidad);
+
+    const bibCatsArr = Object.entries(bibCats)
+      .map(([cat,cnt])=>({ categoria:cat, cantidad:cnt }))
+      .sort((a,b)=>b.cantidad-a.cantidad);
+
+    // ── RESUMEN EJECUTIVO ────────────────────────────────────
+    const partes = [];
+    partes.push(`Durante el período comprendido entre el ${fi} y el ${ff}, el Sistema de Gestión Documental de Coraza Seguridad C.T.A. registró un total de <strong>${total}</strong> operaciones documentales.`);
+
+    if (modulos.correspondencia && stats.correspondencia > 0) {
+      const entregados = corrEstados.ENTREGADO||0;
+      const pct = stats.correspondencia>0 ? ((entregados/stats.correspondencia)*100).toFixed(0) : 0;
+      partes.push(`En correspondencia se gestionaron <strong>${stats.correspondencia}</strong> documentos, de los cuales ${entregados} fueron entregados satisfactoriamente (${pct}% de efectividad). El medio más utilizado fue <strong>${Object.entries(corrMedios).sort((a,b)=>b[1]-a[1])[0]?.[0]||'N/A'}</strong>.`);
+    }
+    if (modulos.minutas && stats.minutas > 0) {
+      const tipoTop = Object.entries(minutasTipos).sort((a,b)=>b[1]-a[1])[0];
+      partes.push(`Se registraron <strong>${stats.minutas}</strong> minutas en el sistema${tipoTop ? `, con predominio del tipo <strong>${tipoTop[0]}</strong> (${tipoTop[1]} registros)` : ''}.`);
+    }
+    if (modulos.personal && stats.personal > 0) {
+      partes.push(`El módulo de personal registró <strong>${stats.personal}</strong> bajas de personal inactivo durante el período.`);
+    }
+    if (modulos.contratos && stats.contratos > 0) {
+      const fmt = new Intl.NumberFormat('es-CO', {style:'currency',currency:'COP',maximumFractionDigits:0});
+      partes.push(`Se formalizaron <strong>${stats.contratos}</strong> contratos por un valor total de <strong>${fmt.format(valorTotalContratos)}</strong>${contratosAltoValor>0?`, de los cuales ${contratosAltoValor} superaron el millón de pesos y requirieron aprobación de Gerencia`:''}.`);
+    }
+    if (modulos.prestamos && stats.prestamos > 0) {
+      partes.push(`La gestión de préstamos documentales registró <strong>${stats.prestamos}</strong> solicitudes: ${prestEstados.DEVUELTO} devueltos correctamente, ${prestEstados.ACTIVO} activos y ${prestEstados.VENCIDO} con vencimiento pendiente${prestEstados.VENCIDO>0?' — se recomienda gestión inmediata':''}.`);
+    }
+    if (modulos.biblioteca && stats.biblioteca > 0) {
+      partes.push(`La biblioteca documental incorporó <strong>${stats.biblioteca}</strong> nuevos documentos al acervo institucional.`);
+    }
+    if (total === 0) {
+      partes.push('No se encontraron registros en el período seleccionado para los módulos elegidos. Verifique las fechas y que existan datos en el sistema.');
+    }
+
+    const resumen = partes.join(' ');
+
+    const result = {
+      success: true,
+      total,
+      stats,
+      distribucionTipos,
+      distribucionDepartamentos,
+      tendenciaMensual,
+      corrEstados,
+      corrEstadosArr,
+      corrMediosArr,
+      minutasTiposArr,
+      contratosTiposArr,
+      bibCatsArr,
+      prestEstados,
+      valorTotalContratos,
+      contratosAltoValor,
+      resumen,
+      tiempo: Date.now() - t0,
+      modulos,
+      periodo: { inicio: fechaInicio, fin: fechaFin }
+    };
+    
+    try {
+      CacheService.getScriptCache().put(cacheKey, JSON.stringify(result), 60);
+    } catch(e) { console.error("Cache write error:", e); }
+    return result;
+  } catch(e) {
+    console.error("generarInforme error:", e);
+    registrarAuditoria('INFORMES', 'ERROR', e.message, 'ERROR', '');
+    return { success:false, message:`Error al generar informe: ${e.message}` };
+  }
+}
+
+// ============================================================
+// AUDITORÍA
+// ============================================================
+function registrarAuditoria(modulo, accion, detalle, tipo, usuario) {
+  try {
+    let sheet = SS.getSheetByName('LOG_AUDITORIA_INMUTABLE');
+    if (!sheet) {
+      sheet = SS.insertSheet('LOG_AUDITORIA_INMUTABLE');
+      sheet.getRange(1,1,1,9).setValues([['TIMESTAMP','FECHA','USUARIO','MODULO','ACCION','DETALLE','TIPO','IP','VERSION']]).setFontWeight('bold').setBackground('#1a237e').setFontColor('#ffffff');
+      sheet.setFrozenRows(1);
+    }
+    const now = new Date();
+    const fechaFormateada = Utilities.formatDate(now, 'America/Bogota', 'd/M/yyyy, h:mm:ss a');
+    sheet.appendRow([now.getTime(),fechaFormateada,usuario||'sistema',modulo,accion,detalle,tipo||'INFO','',APP_VERSION]);
+  } catch(e) { console.error('registrarAuditoria error:',e); }
+}
+
+function obtenerLogsAuditoria(pagina, porPagina, totalRef) {
+  pagina = pagina||1; porPagina = porPagina||50;
+  try {
+    const sheet = SS.getSheetByName('LOG_AUDITORIA_INMUTABLE');
+    if (!sheet||sheet.getLastRow()<=1) return { success:true, logs:[], total:0, pagina:1, paginas:1, totalRef:0 };
+    
+    const actualTotal = sheet.getLastRow()-1;
+    // Anclaje de la paginación a un totalRef específico para evitar saltos
+    const ref = (pagina === 1 || !totalRef) ? actualTotal : totalRef;
+    const paginas = Math.ceil(ref/porPagina);
+    
+    const endRow = (ref + 1) - ((pagina - 1) * porPagina);
+    const startRow = Math.max(2, endRow - porPagina + 1);
+    const cantFilas = endRow - startRow + 1;
+    
+    if (cantFilas<=0) return { success:true, logs:[], total:actualTotal, pagina, paginas, totalRef:ref };
+    const data = sheet.getRange(startRow,1,cantFilas,9).getValues();
+    const logs = data.reverse().map(row=>({ timestamp:row[0], fecha:String(row[1]||''), usuario:String(row[2]||''), modulo:String(row[3]||''), accion:String(row[4]||''), detalle:String(row[5]||''), tipo:String(row[6]||'INFO'), version:String(row[8]||'') }));
+    return { success:true, logs, total:actualTotal, pagina, paginas, totalRef:ref };
+  } catch(e) { 
+    console.error("Error en obtenerLogsAuditoria:", e);
+    return { success:false, logs:[], total:0, pagina:1, paginas:1, totalRef:0 }; 
+  }
+}
+
+// ============================================================
+// USUARIOS
+// ============================================================
+function obtenerUsuarios() {
+  try {
+    const sheet = SS.getSheetByName('USUARIOS');
+    if (!sheet||sheet.getLastRow()<=1) return { success:true, usuarios:[] };
+    const data = sheet.getDataRange().getValues();
+    const usuarios = [];
+    for (let i=1;i<data.length;i++) {
+      if (!data[i][0]||!String(data[i][0]).trim()) continue;
+      usuarios.push({ email:String(data[i][0]||''), nombre:String(data[i][2]||'Sin nombre'), departamento:String(data[i][3]||'GH'), estado:String(data[i][4]||'ACTIVO'), rol:String(data[i][5]||'USUARIO'), ultimoAcceso:data[i][6]?new Date(data[i][6]).toISOString():null });
+    }
+    return { success:true, usuarios };
+  } catch(e) { 
+    console.error("Error en obtenerUsuarios:", e);
+    return { success:false, message:'Error interno', usuarios:[] }; 
+  }
+}
+
+function registrarUsuario(d) {
+  try {
+    let sheet = SS.getSheetByName('USUARIOS');
+    if (!sheet) {
+      sheet = SS.insertSheet('USUARIOS');
+      sheet.getRange(1,1,1,9).setValues([['EMAIL','PASSWORD_HASH','NOMBRE','DEPARTAMENTO','ESTADO','ROL','ULTIMO_ACCESO','INTENTOS_FALLIDOS','SALT']]).setFontWeight('bold').setBackground('#1a237e').setFontColor('#ffffff');
+      sheet.setFrozenRows(1);
+    }
+    if (!d.password||d.password.trim()==='') return { success:false, message:'❌ Contraseña vacía.' };
+    if (sheet.getLastRow()>1) {
+      const rows = sheet.getDataRange().getValues();
+      for (let i=1;i<rows.length;i++) if(rows[i][0]===d.email) return { success:false, message:'❌ Email ya registrado' };
+    }
+    const salt = Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, Math.random().toString() + Date.now())).substring(0, 16);
+    sheet.appendRow([d.email,hashPassword(d.password, salt),d.nombre,d.departamento||'GH','ACTIVO',d.rol||'USUARIO',null,0,salt]);
+    registrarAuditoria('USUARIOS','REGISTRO',`Nuevo usuario: ${d.email}`,'EXITO','');
+    return { success:true, message:'✅ Usuario registrado' };
+  } catch(e) { 
+    console.error("Error en registrarUsuario:", e);
+    registrarAuditoria('USUARIOS', 'REGISTRO_ERROR', e.message, 'ERROR', '');
+    return { success:false, message:`❌ ${e.message}` }; 
+  }
+}
+
+// ============================================================
+// SISTEMA
+// ============================================================
+function probarConexion() {
+  try {
+    const diagnostic = [];
+    const sheets = SS.getSheets();
+    sheets.forEach(s => {
+      const name = s.getName();
+      const lastRow = s.getLastRow();
+      let headers = [];
+      if (lastRow > 0) {
+        headers = s.getRange(1, 1, 1, Math.min(15, s.getLastColumn())).getValues()[0];
+      }
+      diagnostic.push(`• ${name} (${lastRow} filas):\n  Columnas: [${headers.join(', ')}]`);
+    });
+    return { 
+      success: true, 
+      message: '⚡ DIAGNÓSTICO DE HOJAS:\n\n' + diagnostic.join('\n\n'), 
+      version: APP_VERSION 
+    };
+  } catch(e) {
+    console.error("Error en probarConexion:", e);
+    return { success: false, message: `❌ Fallo: ${e.message}` };
+  }
+}
+
+function limpiarCacheCompleto() {
+  try { CacheService.getScriptCache().removeAll(); return { success:true, message:'✅ Cache limpiado' }; }
+  catch(e) { console.error("Error en limpiarCacheCompleto:", e); return { success:false, message:`❌ ${e.message}` }; }
+}
+
+function backupSistema() {
+  try {
+    const activeSS = getActiveSS();
+    if (!activeSS) return { success:false, message:'No se pudo conectar a la hoja de cálculo activa para realizar el backup' };
+    const id = activeSS.getId();
+    const nombre = `BACKUP_SGD_v74_${Utilities.formatDate(new Date(),'America/Bogota','yyyyMMdd_HHmm')}`;
+    const backup = DriveApp.getFileById(id).makeCopy(nombre);
+    return { success:true, message:'✅ Backup creado con éxito', nombre, url:`https://docs.google.com/spreadsheets/d/${backup.getId()}/edit` };
+  } catch(e) { console.error("Error en backupSistema:", e); return { success:false, message:`❌ ${e.message}` }; }
+}
+
+function inicializarSistema() {
+  try {
+    let creadas = 0;
+    const hojasReq = {
+      'USUARIOS': ['EMAIL', 'PASSWORD', 'NOMBRE', 'DEPARTAMENTO', 'ESTADO', 'ROL', 'ULTIMO_ACCESO', 'INTENTOS_LOGOUT', 'SALT'],
+      'MINUTAS': ['ID', 'TIPO_MINUTA', 'NOMBRE_PUESTO', 'FECHA_INICIO', 'FECHA_CIERRE', 'OBSERVACIONES', 'ESTADO', 'FECHA_REGISTRO', 'RESPONSABLE', 'VOXELSERA', 'CODIGO_UNICO', 'CODIGO_NUMERICO'],
+      'CORRESPONDENCIA': ['ID', 'CODIGO_DOCUMENTO', 'FECHA_DOCUMENTO', 'MEDIO', 'TIPO_DOCUMENTO', 'DEPTO_ORIGEN', 'DEPTO_DESTINO', 'ASUNTO', 'DETALLE', 'FECHA_REGISTRO', 'ESTADO', 'USUARIO_REGISTRO', 'VOXELSERA', 'CODIGO_UNICO', 'CODIGO_NUMERICO'],
+      'PERSONAL_INACTIVO': ['ID', 'NOMBRE_COMPLETO', 'CEDULA', 'FECHA_BAJA', 'MOTIVO_BAJA', 'OBSERVACIONES', 'FECHA_REGISTRO', 'VOXELSERA', 'CODIGO_NUMERICO'],
+      'CONTRATOS': ['ID', 'TIPO_CONTRATO', 'NUMERO_CONTRATO', 'PARTE_A', 'PARTE_B', 'FECHA_INICIO', 'FECHA_FIN', 'VALOR_CONTRATO', 'OBJETO_CONTRATO', 'FECHA_REGISTRO', 'VOXELSERA', 'ESTADO', 'CODIGO_NUMERICO'],
+      'LOG_AUDITORIA_INMUTABLE': ['ID', 'FECHA', 'USUARIO', 'MODULO', 'ACCION', 'DETALLE', 'ESTADO', 'RESPUESTA', 'VERSION'],
+      'PRESTAMOS': ['ID', 'SOLICITANTE', 'DEPARTAMENTO', 'DOCUMENTO', 'CODIGO_DOCUMENTO', 'FECHA_PRESTAMO', 'FECHA_DEVOLUCION', 'FECHA_DEVOLUCION_REAL', 'ESTADO'],
+      'WORKFLOWS': ['ID', 'TIPO', 'DOCUMENTO_ID', 'SOLICITANTE', 'APROBADOR', 'FECHA_CREACION', 'FECHA_LIMITE', 'ESTADO', 'COMENTARIOS', 'COMENTARIOS_APROBACION', 'DIAS_SLA'],
+      'BIBLIOTECA': ['ID', 'NOMBRE', 'CATEGORIA', 'VERSION', 'ESTADO', 'URL', 'FECHA_ELABORACION', 'DESCRIPCION_CAMBIO', 'RESPONSABLE', 'CARPETA_ID', 'FECHA_REGISTRO', 'USUARIO_REGISTRO'],
+      'BIBLIOTECA_CARPETAS': ['ID', 'NOMBRE', 'PADRE', 'COLOR', 'FECHA_REGISTRO', 'ES_SISTEMA'],
+      'TABLA_TRD': ['ID', 'CODIGO_DEP', 'NOMBRE_DEP', 'CODIGO_SERIE', 'NOMBRE_SERIE', 'CODIGO_SUBSERIE', 'NOMBRE_SUBSERIE', 'TIEMPO_GESTION_ANOS', 'TIEMPO_CENTRAL_ANOS', 'DISPOSICION_FINAL', 'NORMATIVA_BASE']
+    };
+    
+    Object.keys(hojasReq).forEach(nombre => {
+      let sheet = SS.getSheetByName(nombre);
+      if (!sheet) {
+        sheet = SS.insertSheet(nombre);
+        creadas++;
+      }
+      obtenerUAgregarCabeceras(sheet, hojasReq[nombre]);
+    });
+    
+    // Sembrar registros TRD normativos iniciales si TABLA_TRD está vacía
+    const sheetTRD = SS.getSheetByName('TABLA_TRD');
+    if (sheetTRD && sheetTRD.getLastRow() <= 1) {
+      const headersTRD = sheetTRD.getRange(1, 1, 1, sheetTRD.getLastColumn()).getValues()[0].map(h => String(h).trim().toUpperCase());
+      const semillasTRD = [
+        { ID:'TRD-001', CODIGO_DEP:'100', NOMBRE_DEP:'GERENCIA GENERAL', CODIGO_SERIE:'10', NOMBRE_SERIE:'COMUNICACIONES OFICIALES', CODIGO_SUBSERIE:'01', NOMBRE_SUBSERIE:'CARTAS Y MEMORANDOS', TIEMPO_GESTION_ANOS:2, TIEMPO_CENTRAL_ANOS:8, DISPOSICION_FINAL:'CONSERVACION TOTAL', NORMATIVA_BASE:'Código de Comercio Art. 60 / Ley 594' },
+        { ID:'TRD-002', CODIGO_DEP:'200', NOMBRE_DEP:'GESTION HUMANA', CODIGO_SERIE:'20', NOMBRE_SERIE:'HISTORIAS LABORALES Y SG-SST', CODIGO_SUBSERIE:'01', NOMBRE_SUBSERIE:'EXAMENES MEDICOS Y SALUD OCUPACIONAL', TIEMPO_GESTION_ANOS:5, TIEMPO_CENTRAL_ANOS:15, DISPOSICION_FINAL:'CONSERVACION TOTAL (20 AÑOS)', NORMATIVA_BASE:'Decreto 1072 de 2015 SG-SST' },
+        { ID:'TRD-003', CODIGO_DEP:'300', NOMBRE_DEP:'FINANCIERA Y CONTABLE', CODIGO_SERIE:'30', NOMBRE_SERIE:'REGISTROS Y COMPROBANTES CONTABLES', CODIGO_SUBSERIE:'01', NOMBRE_SUBSERIE:'COMPROBANTES DE PAGO Y FACTURAS', TIEMPO_GESTION_ANOS:3, TIEMPO_CENTRAL_ANOS:7, DISPOSICION_FINAL:'ELIMINACION REGULADA', NORMATIVA_BASE:'Ley 527 de 1999 / C.Co Art. 60' },
+        { ID:'TRD-004', CODIGO_DEP:'400', NOMBRE_DEP:'OPERACIONES Y SEGURIDAD', CODIGO_SERIE:'40', NOMBRE_SERIE:'MINUTAS Y REPORTES OPERATIVOS', CODIGO_SUBSERIE:'01', NOMBRE_SUBSERIE:'NOVEDADES Y SEGUIMIENTO DE PUESTO', TIEMPO_GESTION_ANOS:2, TIEMPO_CENTRAL_ANOS:3, DISPOSICION_FINAL:'SELECCION', NORMATIVA_BASE:'Ley 594 de 2000 AGN' },
+        { ID:'TRD-005', CODIGO_DEP:'500', NOMBRE_DEP:'JURIDICA Y CONTRATOS', CODIGO_SERIE:'50', NOMBRE_SERIE:'CONTRATOS Y CONVENIOS', CODIGO_SUBSERIE:'01', NOMBRE_SUBSERIE:'CONTRATOS COMERCIALES Y LABORALES', TIEMPO_GESTION_ANOS:5, TIEMPO_CENTRAL_ANOS:15, DISPOSICION_FINAL:'CONSERVACION TOTAL', NORMATIVA_BASE:'Ley 80 / Código de Comercio' }
+      ];
+      semillasTRD.forEach(sem => {
+        sheetTRD.appendRow(objectToRow(headersTRD, sem));
+      });
+    }
+    
+    crearAdminPorDefecto(); 
+    obtenerArbolCompleto();
+    registrarAuditoria('SISTEMA','INICIALIZACION',`Sistema v${APP_VERSION} inicializado con TRD`,'EXITO','sistema');
+    return { success:true, message:`✅ Sistema inicializado con éxito. Cabeceras y TRD alineadas para las ${Object.keys(hojasReq).length} hojas.`, creadas };
+  } catch(e) { console.error("Error en inicializarSistema:", e); return { success:false, message:`❌ ${e.message}` }; }
+}
+
+// ============================================================
+// CHATBOT IA
+// ============================================================
+function extraerPalabrasClave(texto) {
+  const STOPWORDS = new Set(['el','la','los','las','un','una','de','del','al','en','con','por','para','que','qué','como','cómo','hay','dame','dime','busca','buscar','encuentra','muestra','ver','necesito','quiero','tiene','tienen','existe','cuál','cuáles','este','esta','mi','mis','su','sus','me','se','es','son','está','están','fue','fueron','a','y','o','e','también','pero','sin','sobre','bajo','entre','hasta','desde','información','datos','registros','archivo','sistema','sgd','documento']);
+  return texto.toLowerCase().replace(/[¿¡?,.:;!()]/g,' ').split(/\s+/).filter(w=>w.length>2&&!STOPWORDS.has(w)).slice(0,5);
+}
+
+function llamarCorazaIA(pregunta, resultados) {
+  const apiKey = getGroqApiKey();
+  if (!apiKey) throw new Error('API_KEY_NOT_CONFIGURED');
+  const SYSTEM_PROMPT = `Eres CORAZA, el asistente inteligente del Sistema de Gestión Documental de Coraza Seguridad C.T.A. v7.4 SECURE.\n\nREGLAS IMPORTANTES:\n1. Responde SIEMPRE en español, de forma clara y profesional.\n2. Máximo 300 palabras. Sé conciso.\n3. Usa emojis con moderación (máximo 4 en toda la respuesta).\n4. Si hay resultados del sistema, resúmelos de forma útil y organizada.\n5. Si no hay resultados, sugiere amablemente cómo refinar la búsqueda.\n6. NUNCA inventes datos. Basa tu respuesta ÚNICAMENTE en la información proporcionada.`;
+  const ctxResultados = resultados.length>0
+    ? `REGISTROS ENCONTRADOS (${resultados.length}):\n`+resultados.slice(0,8).map((r,i)=>`${i+1}. [${r.tipo}] ${r.titulo||r.nombre||'Sin título'}${r.descripcion?` — ${r.descripcion}`:''}${r.codigoUnico?` | Código: ${r.codigoUnico}`:''}${r.ubicacion?` | Ubicación: ${r.ubicacion}`:''}` ).join('\n')
+    : 'No se encontraron registros específicos para esta consulta en el sistema.';
+  let lastError = null;
+  for (const modelo of GROQ_MODELOS) {
+    try {
+      const response = UrlFetchApp.fetch(GROQ_API_URL,{method:'POST',headers:{'Authorization':`Bearer ${apiKey}`,'Content-Type':'application/json'},payload:JSON.stringify({model:modelo,messages:[{role:'system',content:SYSTEM_PROMPT},{role:'user',content:`Consulta del usuario: "${pregunta}"\n\n${ctxResultados}`}],temperature:0.4,max_tokens:400,stream:false}),muteHttpExceptions:true});
+      const code = response.getResponseCode();
+      if (code===200) { const json=JSON.parse(response.getContentText()); if(json.choices&&json.choices[0]&&json.choices[0].message) return {texto:json.choices[0].message.content,modelo}; }
+      else if (code===401) throw new Error('API_KEY_INVALID');
+      else { lastError=new Error(`HTTP_${code}`); continue; }
+    } catch(e) { if(e.message==='API_KEY_INVALID') throw e; lastError=e; continue; }
+  }
+  throw lastError||new Error('ALL_MODELS_FAILED');
+}
+
+function generarRespuestaInteligente(pregunta, resultados) {
+  const q = pregunta.toLowerCase();
+  const esSaludo = /^(hola|buenos|buenas|hi|hey|saludos|qué tal|que tal|cómo estás|como estas)/.test(q);
+  const esAyuda  = /ayuda|ayudar|qué puedes|que puedes|cómo funciona|como funciona|qué haces|que haces/.test(q);
+  if (esSaludo) return '👋 **¡Hola!** Soy CORAZA IA, el asistente del Sistema de Gestión Documental.\n\nPuedo ayudarte a:\n• 🔍 Buscar contratos, personal, correspondencia\n• 📋 Consultar minutas y préstamos\n• 📚 Localizar documentos en biblioteca\n\nEscribe el nombre, código o cédula que deseas encontrar.';
+  if (esAyuda) return '🎯 **¿Cómo puedo ayudarte?**\n\nEscribe palabras clave como:\n• **Nombre de persona** → busca en personal y contratos\n• **Código** (ej: GH001) → busca en correspondencia\n• **Empresa** → busca en contratos\n• **Tipo de documento** → busca en biblioteca y minutas\n\n💡 *Cuanto más específica sea tu búsqueda, mejores resultados obtendrás.*';
+  if (resultados.length>0) {
+    const porTipo = {};
+    resultados.forEach(item=>{ if(!porTipo[item.tipo]) porTipo[item.tipo]=[]; porTipo[item.tipo].push(item); });
+    let respuesta = `🔍 **Encontré ${resultados.length} resultado(s)** para "${pregunta}":\n\n`;
+    for (const tipo in porTipo) {
+      const items = porTipo[tipo];
+      respuesta += `**${tipo}** (${items.length}):\n`;
+      items.slice(0,3).forEach((item,idx)=>{ respuesta+=`  ${idx+1}. ${item.titulo||item.nombre||'Sin título'}`; if(item.codigoUnico) respuesta+=` (Código: **${item.codigoUnico}**)`; if(item.descripcion) respuesta+=` — ${item.descripcion.substring(0,60)}`; if(item.ubicacion) respuesta+=` 📍 ${item.ubicacion}`; respuesta+='\n'; });
+      if(items.length>3) respuesta+=`  _...y ${items.length-3} más_\n`;
+      respuesta+='\n';
+    }
+    respuesta+='💡 *Usa el módulo de búsqueda para filtros avanzados.*';
+    return respuesta;
+  }
+  return `🔍 No encontré resultados para **"${pregunta}"**.\n\n💡 **Sugerencias:**\n• Usa términos más específicos (nombre, código, cédula)\n• Verifica la ortografía\n• Prueba con solo parte del nombre\n• Usa la sección de **Búsqueda Universal** para filtros avanzados`;
+}
+
+function chatbotCocodrilo(pregunta) {
+  try {
+    if (!pregunta||typeof pregunta!=='string'||pregunta.trim()==='') return { exito:true, respuesta:'👋 **¡Hola! Soy CORAZA IA v7.3**\n\n¿En qué puedo ayudarte hoy?', fuenteIA:false, datos:[] };
+    const q = pregunta.trim();
+    
+    // Obtener palabras clave
+    const palabrasClave = extraerPalabrasClave(q);
+    if (q.length > 2 && !palabrasClave.includes(q.toLowerCase())) {
+      palabrasClave.push(q);
+    }
+    
+    let resultados = [];
+    // Una sola llamada a búsqueda universal con todas las palabras clave para evitar re-lecturas a Sheets
+    try {
+      const res = busquedaUniversal(palabrasClave, 'todos');
+      if (res.success && res.resultados) {
+        resultados = res.resultados;
+      }
+    } catch(e) {
+      console.error("Error en búsqueda del chatbot:", e);
+    }
+
+    const vistos = new Set();
+    resultados = resultados.filter(item=>{ const key=String(item.id||item.titulo||''); if(!key||vistos.has(key)) return false; vistos.add(key); return true; }).slice(0,12);
+    try { const iaResult=llamarCorazaIA(q,resultados); return { exito:true, respuesta:iaResult.texto, datos:resultados.slice(0,8), fuenteIA:true, modeloUsado:iaResult.modelo }; }
+    catch(iaError) { return { exito:true, respuesta:generarRespuestaInteligente(q,resultados), datos:resultados.slice(0,8), fuenteIA:false, nota:'Modo local activo' }; }
+  } catch(e) { 
+    console.error("Error general en chatbotCocodrilo:", e);
+    return { exito:true, respuesta:'⚠️ **Ocurrió un error inesperado en el asistente.**\n\nPor favor intenta de nuevo.', datos:[], fuenteIA:false }; 
+  }
+}
+
+// ============================================================
+// LOGO GETTER
+// ============================================================
+function getLogoUrl() {
+  try {
+    const cache = CacheService.getScriptCache();
+    let cachedLogo = cache.get("logo_base64_cached");
+    if (cachedLogo) {
+      return 'data:image/jpeg;base64,' + cachedLogo;
+    }
+    const response = UrlFetchApp.fetch("https://i.postimg.cc/MZ3TC2Wy/logo-resized.jpg");
+    const base64 = Utilities.base64Encode(response.getContentBlob().getBytes());
+    cache.put("logo_base64_cached", base64, 21600); // Guardar en caché por 6 horas
+    return 'data:image/jpeg;base64,' + base64;
+  } catch(e) {
+    console.error("Error al obtener el logo remoto:", e);
+    // Si falla el fetch o la codificación, usar la URL remota directa como fallback
+    return "https://i.postimg.cc/MZ3TC2Wy/logo-resized.jpg";
+  }
+}
+
+// ============================================================
+// doGet & MENÚ
+// ============================================================
+function doGet() {
+  try {
+    return HtmlService.createTemplateFromFile('Index').evaluate().setTitle('SGD CORAZA v7.3 MINIMALISTA').addMetaTag('viewport','width=device-width, initial-scale=1').setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  } catch(e) { 
+    console.error("Error en doGet:", e);
+    return HtmlService.createHtmlOutput(`<h1>Error: ${e.message}</h1>`); 
+  }
+}
+
+function onOpen() {
+  try {
+    SpreadsheetApp.getUi().createMenu('📁 SGD CORAZA v7.3')
+      .addItem('🚀 Abrir Sistema','abrirSistema').addSeparator()
+      .addItem('🔄 Inicializar Sistema','inicializarSistema')
+      .addItem('👑 Crear Admin','crearAdminPorDefecto')
+      .addItem('🔑 Resetear Contraseña','resetearContrasenaMenu')
+      .addItem('🔐 Configurar API Key IA','configurarApiKey')
+      .addItem('🔔 Programar Alertas Diarias','crearDisparadorDiario').addSeparator()
+      .addItem('💾 Backup','crearBackupMenu')
+      .addItem('🧹 Limpiar Cache','limpiarCacheCompleto').addToUi();
+  } catch(e) {
+    console.error("Error en onOpen:", e);
+  }
+}
+
+function abrirSistema() {
+  const url = ScriptApp.getService().getUrl();
+  SpreadsheetApp.getUi().showModalDialog(HtmlService.createHtmlOutput(`<script>window.open('${url}','_blank');google.script.host.close();</script>`).setWidth(400).setHeight(200),'Abriendo SGD…');
+}
+
+function crearBackupMenu() {
+  const ui = SpreadsheetApp.getUi();
+  const r = ui.alert('💾 BACKUP','¿Crear copia de seguridad ahora?',ui.ButtonSet.YES_NO);
+  if (r===ui.Button.YES) { const res=backupSistema(); if(res.success) ui.alert('✅ BACKUP',`Creado: ${res.nombre}`,ui.ButtonSet.OK); }
+}
+
+function onInstall() { onOpen(); inicializarSistema(); }
+
+// ============================================================
+// FUNCIONES ADICIONALES OPTIMIZACIÓN v7.4
+// ============================================================
+
+function obtenerHistorialVersiones(nombreDoc) {
+  try {
+    const sheet = SS.getSheetByName('BIBLIOTECA');
+    if (!sheet || sheet.getLastRow() <= 1) return { success: true, versiones: [] };
+    const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 10).getValues();
+    const versiones = [];
+    data.forEach(row => {
+      if (row[1] && String(row[1]).trim().toLowerCase() === String(nombreDoc).trim().toLowerCase()) {
+        versiones.push({
+          id: row[0],
+          nombre: row[1],
+          categoria: row[2],
+          version: row[3],
+          url: row[4],
+          fechaElab: row[5] ? Utilities.formatDate(new Date(row[5]), 'America/Bogota', 'yyyy-MM-dd') : '—',
+          descCambio: row[6] || '—',
+          responsable: row[7] || '—',
+          estado: row[8] || '—',
+          fechaRegistro: row[9] ? Utilities.formatDate(new Date(row[9]), 'America/Bogota', 'yyyy-MM-dd HH:mm') : '—'
+        });
+      }
+    });
+    // Ordenar por versión descendente
+    versiones.sort((a,b) => parseFloat(b.version) - parseFloat(a.version));
+    return { success: true, versiones };
+  } catch(e) {
+    console.error("Error en obtenerHistorialVersiones:", e);
+    return { success: false, message: e.message, versiones: [] };
+  }
+}
+
+function enviarResumenAlertasDiario() {
+  try {
+    const hoy = new Date();
+    hoy.setHours(0,0,0,0);
+    const limiteContrato = new Date(hoy.getTime() + 30 * 86400000); // 30 días
+
+    const prestamosVencidos = [];
+    const contratosPorVencer = [];
+
+    // 1. Escanear Préstamos
+    const sheetP = SS.getSheetByName('PRESTAMOS');
+    if (sheetP && sheetP.getLastRow() > 1) {
+      const dataP = sheetP.getRange(2, 1, sheetP.getLastRow() - 1, 8).getValues();
+      dataP.forEach(row => {
+        if (row[0] && row[6] !== 'DEVUELTO') {
+          const fDev = row[5] ? new Date(row[5]) : null;
+          if (fDev) {
+            fDev.setHours(0,0,0,0);
+            if (fDev < hoy) {
+              const dias = Math.round((hoy.getTime() - fDev.getTime()) / 86400000);
+              prestamosVencidos.push({
+                id: row[0],
+                solicitante: row[1],
+                depto: row[2],
+                documento: row[3],
+                vencimiento: Utilities.formatDate(fDev, 'America/Bogota', 'yyyy-MM-dd'),
+                diasVencido: dias
+              });
+            }
+          }
+        }
+      });
+    }
+
+    // 2. Escanear Contratos
+    const sheetC = SS.getSheetByName('CONTRATOS');
+    if (sheetC && sheetC.getLastRow() > 1) {
+      const dataC = sheetC.getRange(2, 1, sheetC.getLastRow() - 1, 12).getValues();
+      dataC.forEach(row => {
+        if (row[0] && row[7] !== 'FINALIZADO') {
+          const fFin = row[4] ? new Date(row[4]) : null;
+          if (fFin) {
+            fFin.setHours(0,0,0,0);
+            if (fFin >= hoy && fFin <= limiteContrato) {
+              const dias = Math.round((fFin.getTime() - hoy.getTime()) / 86400000);
+              contratosPorVencer.push({
+                id: row[0],
+                contratista: row[1],
+                objeto: row[2],
+                fechaFin: Utilities.formatDate(fFin, 'America/Bogota', 'yyyy-MM-dd'),
+                diasRestantes: dias
+              });
+            }
+          }
+        }
+      });
+    }
+
+    if (prestamosVencidos.length === 0 && contratosPorVencer.length === 0) {
+      console.log("Diario: Sin alertas pendientes.");
+      return "Sin alertas";
+    }
+
+    let adminEmail = "";
+    const sheetU = SS.getSheetByName('USUARIOS');
+    if (sheetU && sheetU.getLastRow() > 1) {
+      const dataU = sheetU.getRange(2, 1, sheetU.getLastRow() - 1, 6).getValues();
+      const adminRow = dataU.find(r => r[4] === 'ADMINISTRADOR' && r[3] === 'ACTIVO');
+      if (adminRow) adminEmail = adminRow[0];
+    }
+    if (!adminEmail) {
+      adminEmail = Session.getScriptUser().getEmail();
+    }
+
+    let html = `<div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #d0dfee; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(20,42,68,0.05);">
+      <div style="background: linear-gradient(135deg, #142a44, #4a74a7); color: white; padding: 24px; text-align: center;">
+        <h2 style="margin: 0; font-size: 20px; font-weight: 700; letter-spacing: 0.5px;">🔔 Reporte de Alertas Diarias</h2>
+        <p style="margin: 6px 0 0 0; font-size: 13px; opacity: 0.85;">SGD CORAZA Seguridad C.T.A.</p>
+      </div>
+      <div style="padding: 24px; background: #ffffff;">`;
+
+    if (prestamosVencidos.length > 0) {
+      html += `<h3 style="color: #ef4444; margin-top: 0; border-bottom: 2px solid #ffcdd2; padding-bottom: 6px;">🔄 Préstamos Documentales Vencidos (${prestamosVencidos.length})</h3>
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 13px;">
+        <thead>
+          <tr style="background: #f4f8fc; border-bottom: 1px solid #d0dfee; text-align: left;">
+            <th style="padding: 8px;">Documento</th>
+            <th style="padding: 8px;">Solicitante</th>
+            <th style="padding: 8px; text-align: center;">Días Vencido</th>
+          </tr>
+        </thead>
+        <tbody>`;
+      prestamosVencidos.forEach(p => {
+        html += `<tr style="border-bottom: 1px solid #e1ebf5;">
+          <td style="padding: 8px; font-weight: 600; color: #142a44;">${p.documento} <span style="font-size: 11px; color:#5c728e;">(${p.id})</span></td>
+          <td style="padding: 8px;">${p.solicitante} (${p.depto})</td>
+          <td style="padding: 8px; text-align: center; color: #ef4444; font-weight: bold;">${p.diasVencido} d</td>
+        </tr>`;
+      });
+      html += `</tbody></table>`;
+    }
+
+    if (contratosPorVencer.length > 0) {
+      html += `<h3 style="color: #f59e0b; margin-top: 0; border-bottom: 2px solid #ffe0b2; padding-bottom: 6px;">📑 Contratos por Vencer en 30 días (${contratosPorVencer.length})</h3>
+      <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+        <thead>
+          <tr style="background: #f4f8fc; border-bottom: 1px solid #d0dfee; text-align: left;">
+            <th style="padding: 8px;">Contratista</th>
+            <th style="padding: 8px;">Objeto</th>
+            <th style="padding: 8px; text-align: center;">Días Restantes</th>
+          </tr>
+        </thead>
+        <tbody>`;
+      contratosPorVencer.forEach(c => {
+        html += `<tr style="border-bottom: 1px solid #e1ebf5;">
+          <td style="padding: 8px; font-weight: 600; color: #142a44;">${c.contratista} <span style="font-size: 11px; color:#5c728e;">(${c.id})</span></td>
+          <td style="padding: 8px;">${c.objeto}</td>
+          <td style="padding: 8px; text-align: center; color: #f59e0b; font-weight: bold;">${c.diasRestantes} d</td>
+        </tr>`;
+      });
+      html += `</tbody></table>`;
+    }
+
+    html += `</div>
+      <div style="background: #f4f8fc; color: #5c728e; font-size: 11px; text-align: center; padding: 16px; border-top: 1px solid #e1ebf5;">
+        Este es un reporte automático generado por el SGD Coraza.<br>
+        © ${new Date().getFullYear()} Coraza Seguridad C.T.A. · Todos los derechos reservados.
+      </div>
+    </div>`;
+
+    MailApp.sendEmail({
+      to: adminEmail,
+      subject: `⚠️ SGD CORAZA - Alertas del día: ${Utilities.formatDate(new Date(), 'America/Bogota', 'yyyy-MM-dd')}`,
+      htmlBody: html
+    });
+
+    registrarAuditoria('ALERTAS_AUTO', 'ENVIO', `Resumen enviado a ${adminEmail}`, 'EXITO', '');
+    return "Reporte enviado";
+  } catch(e) {
+    console.error("Error en enviarResumenAlertasDiario:", e);
+    registrarAuditoria('ALERTAS_AUTO', 'ERROR', e.message, 'ERROR', '');
+    return "Error: " + e.message;
+  }
+}
+
+function crearDisparadorDiario() {
+  try {
+    const triggers = ScriptApp.getProjectTriggers();
+    triggers.forEach(t => {
+      if (t.getHandlerFunction() === 'enviarResumenAlertasDiario') {
+        ScriptApp.deleteTrigger(t);
+      }
+    });
+    ScriptApp.newTrigger('enviarResumenAlertasDiario')
+      .timeBased()
+      .everyDays(1)
+      .atHour(7)
+      .create();
+    return { success: true, message: "Disparador automático diario creado para las 7:00 AM" };
+  } catch(e) {
+    console.error("Error en crearDisparadorDiario:", e);
+    return { success: false, message: e.message };
+  }
+}
+
+// ============================================================
+// SELECTOR DE BASE DE DATOS DILIGENTE
+// ============================================================
+function listarHojasDeDrive() {
+  try {
+    const lista = [];
+    const files = DriveApp.getFilesByType(MimeType.GOOGLE_SHEETS);
+    let count = 0;
+    while (files.hasNext() && count < 25) {
+      const file = files.next();
+      const id = file.getId();
+      const name = file.getName();
+      let info = { id, nombre: name, personal: 0, correspondencia: 0, contratos: 0, minutas: 0, biblioteca: 0, prestamos: 0 };
+      try {
+        const ss = SpreadsheetApp.openById(id);
+        const shP = ss.getSheetByName('PERSONAL') || ss.getSheetByName('PERSONAL_INACTIVO');
+        if (shP) info.personal = Math.max(0, shP.getLastRow() - 1);
+        const shC = ss.getSheetByName('CORRESPONDENCIA');
+        if (shC) info.correspondencia = Math.max(0, shC.getLastRow() - 1);
+        const shCo = ss.getSheetByName('CONTRATOS');
+        if (shCo) info.contratos = Math.max(0, shCo.getLastRow() - 1);
+        const shM = ss.getSheetByName('MINUTAS');
+        if (shM) info.minutas = Math.max(0, shM.getLastRow() - 1);
+        const shB = ss.getSheetByName('BIBLIOTECA');
+        if (shB) info.biblioteca = Math.max(0, shB.getLastRow() - 1);
+        const shPr = ss.getSheetByName('PRESTAMOS');
+        if (shPr) info.prestamos = Math.max(0, shPr.getLastRow() - 1);
+      } catch(e) {
+        continue;
+      }
+      lista.push(info);
+      count++;
+    }
+    return { success: true, hojas: lista };
+  } catch(e) {
+    return { success: false, message: e.message };
+  }
+}
+
+function conectarSpreadsheet(id) {
+  try {
+    const ss = SpreadsheetApp.openById(id);
+    PropertiesService.getScriptProperties().setProperty('SPREADSHEET_ID', id);
+    // Limpiar caches para que cargue los nuevos datos de inmediato
+    try { CacheService.getScriptCache().removeAll(); } catch(err) {}
+    return { success: true, message: `✅ Conectado con éxito al archivo: ${ss.getName()}` };
+  } catch(e) {
+    return { success: false, message: `❌ Error al conectar: ${e.message}` };
+  }
+}

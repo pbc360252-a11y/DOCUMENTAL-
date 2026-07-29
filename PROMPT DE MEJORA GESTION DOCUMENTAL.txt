@@ -1,0 +1,139 @@
+# 🛠️ PROMPT DE MEJORA — SGD CORAZA C.T.A. v7.2 → v7.3
+
+```
+╔══════════════════════════════════════════════════════════════╗
+║   SISTEMA DE GESTIÓN DOCUMENTAL - CORAZA SEGURIDAD C.T.A.     ║
+║   Google Apps Script + Google Sheets + HTML/JS + Groq IA     ║
+╚══════════════════════════════════════════════════════════════╝
+```
+
+## 1. CONTEXTO (pégalo tal cual a la IA)
+
+Tengo una aplicación de Gestión Documental (SGD CORAZA v7.2) construida en
+**Google Apps Script** (backend, `Code.gs`) + **HTML/CSS/JS vanilla** (frontend,
+`Index.html`) sobre **Google Sheets** como base de datos, con un chatbot IA
+(Groq) integrado. Adjunto el código completo de ambos archivos.
+
+**NO quiero un rediseño ni cambiar el stack.** Quiero que optimices y corrijas
+lo que ya existe, manteniendo:
+- Los mismos nombres de hojas de cálculo y columnas (para no romper datos ya guardados).
+- Los mismos nombres de funciones públicas llamadas desde `google.script.run`.
+- El mismo diseño visual (paleta oscura, Chart.js, SweetAlert2).
+
+## 2. OBJETIVO
+
+```
+┌─────────────────────────┐        ┌─────────────────────────┐
+│   APP ACTUAL (v7.2)     │  --->  │   APP MEJORADA (v7.3)   │
+│  - Lenta en búsquedas   │        │  - Lecturas cacheadas   │
+│  - Errores silenciosos  │        │  - Errores visibles/log │
+│  - Recalcula todo       │        │  - Usa CacheService     │
+│  - Salt fijo en hash    │        │  - Salt por usuario     │
+└─────────────────────────┘        └─────────────────────────┘
+```
+
+Quiero que la app sea **más rápida** (menos lecturas repetidas a Sheets) y que
+corrijas los **errores/bugs concretos** que detallo abajo, sin dejar de
+funcionar como hasta ahora.
+
+## 3. PROBLEMAS DETECTADOS (revisar y corregir todos)
+
+### 🔴 Rendimiento (los que más impactan la velocidad)
+
+1. **`busquedaUniversal` se llama hasta 5 veces por cada mensaje del chatbot**
+   (`chatbotCocodrilo` → `extraerPalabrasClave` → loop de keywords), y cada
+   llamada vuelve a leer las 6 hojas completas con `getDataRange().getValues()`.
+   Esto multiplica innecesariamente las lecturas a Sheets. Debe leerse cada
+   hoja **una sola vez** y filtrar en memoria contra todas las keywords.
+2. Casi todas las funciones (`obtenerCorrespondenciaFiltrada`, `obtenerEstadoPrestamos`,
+   `obtenerAnalyticsDashboard`, `generarInforme`, etc.) leen la hoja completa
+   en cada llamada sin ningún tipo de caché. Quiero usar `CacheService` (TTL
+   corto, ej. 30-60s) para el dashboard y los listados que no cambian a cada
+   segundo, invalidando el caché cuando se registra o actualiza un dato.
+3. `generarCodigoCorrespondencia` y los contadores tipo `let max = 0; ...forEach`
+   en `registrarMinuta`, `registrarPersonalInactivo`, `registrarContrato`
+   recorren TODA la columna cada vez que se registra un nuevo documento. Con
+   pocos cientos de filas ya empieza a notarse. Optimizar guardando el último
+   consecutivo en `PropertiesService` o `CacheService` en vez de recalcular.
+4. En el frontend, `generarInforme()` hace hasta 3 llamadas `google.script.run`
+   en paralelo (`obtenerCorrespondenciaFiltrada`, `obtenerEstadoPrestamos`,
+   `obtenerAnalyticsDashboard`) que a su vez cada una relee todo. Se puede
+   consolidar en una sola función de backend que arme el payload completo del
+   informe en una sola pasada de lectura por hoja.
+5. El polling del frontend (`setInterval` cada 30s) siempre dispara una
+   llamada aunque no haya cambios. Evaluar comparar un "hash" simple de
+   últimos timestamps antes de re-renderizar toda la tabla.
+
+### 🟠 Errores / bugs funcionales
+
+6. **`INTENTOS_FALLIDOS`** existe como columna en `USUARIOS` pero nunca se
+   incrementa ni se usa para bloquear cuentas tras varios intentos fallidos.
+   Implementar bloqueo temporal real (ej. 5 intentos → bloqueo 15 min).
+7. **Salt de contraseña fijo** (`'CORAZA_SALT_2025_SECURE'`) igual para todos
+   los usuarios en `hashPassword`. Esto es una debilidad de seguridad: dos
+   usuarios con la misma contraseña generan el mismo hash. Debe generarse un
+   salt aleatorio por usuario y guardarse junto al hash.
+8. Múltiples bloques `catch(e) {}` completamente vacíos (silencian errores sin
+   dejar rastro), por ejemplo en `obtenerMapaArchivo`, `busquedaUniversal`,
+   `cargarDashboard`, etc. Esto hace imposible diagnosticar por qué algo no
+   carga. Quiero que **todos** los catch registren el error (mínimo con
+   `console.error` y, cuando aplique, `registrarAuditoria(..., 'ERROR', ...)`).
+9. `Session.getActiveUser().getEmail()` se usa en varias funciones de registro
+   (`registrarMinuta`, `registrarBiblioteca`, etc.) para auditoría, pero en un
+   Web App desplegado con "Ejecutar como: Usuario que accede" puede devolver
+   vacío si el usuario no tiene permisos de Apps Script. Reemplazar por el
+   email que ya viaja en `currentUser` desde el frontend (ya lo hacen bien en
+   `registrarCorrespondencia` y `registrarContrato`, falta homogeneizar el
+   resto).
+10. En `subirBiblioteca` del frontend se hacen **dos** llamadas `google.script.run`
+    encadenadas (`registrarBiblioteca` y luego `moverArchivoACarpeta`). Si la
+    segunda falla, el documento queda registrado pero sin carpeta asignada
+    (queda huérfano en "RAIZ") sin ningún aviso al usuario. Unificar en una
+    sola llamada que reciba la carpeta destino directamente.
+11. Revisar la paginación de auditoría (`obtenerLogsAuditoria`): el cálculo de
+    `inicio` con `sheet.getLastRow()-(pagina*porPagina)+1` puede devolver
+    filas duplicadas o saltarse registros al cambiar de página si se
+    insertan nuevas filas entre una carga y otra. Verificar con datos reales
+    y corregir el cálculo de rangos si aplica.
+
+### 🟡 Buenas prácticas / mantenimiento
+
+12. Sacar el `GROQ_API_KEY` hardcodeado como fallback en el código fuente
+    (`const GROQ_API_KEY = 'gsk_...'`). Aunque ya existe `getGroqApiKey()`
+    con `PropertiesService`, el fallback en texto plano en el código es un
+    riesgo si se comparte el script. Eliminar el fallback o dejarlo vacío.
+13. Estandarizar el manejo de fechas (algunas funciones comparan con
+    `new Date(row[x])` sin normalizar zona horaria — verificar que todo use
+    `America/Bogota` de forma consistente, especialmente en los filtros de
+    `generarInforme` y `obtenerEstadoPrestamos`.
+
+## 4. LO QUE ESPERO COMO ENTREGABLE
+
+```
+┌────────────────────────────────────────────────────────────┐
+│  1. Code.gs completo, corregido y optimizado                │
+│  2. Index.html completo, con los ajustes de frontend        │
+│  3. Lista breve al final de "qué cambié y por qué"          │
+│  4. Si algo requiere una hoja/columna nueva, decírmelo       │
+│     ANTES de asumir que ya existe                            │
+└────────────────────────────────────────────────────────────┘
+```
+
+- Todo el código en artefactos/archivos completos y listos para pegar en
+  Apps Script (no fragmentos sueltos que tenga que ensamblar yo).
+- Comentarios breves en español donde cambies algo importante.
+- No agregar librerías externas nuevas ni frameworks (seguimos en Vanilla JS
+  + Apps Script).
+
+## 5. RESTRICCIONES
+
+- No cambiar nombres de hojas (`USUARIOS`, `MINUTAS`, `CORRESPONDENCIA`,
+  `PERSONAL_INACTIVO`, `CONTRATOS`, `PRESTAMOS`, `WORKFLOWS`, `BIBLIOTECA`,
+  `BIBLIOTECA_CARPETAS`, `LOG_AUDITORIA_INMUTABLE`).
+- No cambiar el orden de columnas existente (para no romper datos ya
+  guardados) — si hace falta una columna nueva, agregarla al final.
+- Mantener compatibilidad con sesiones ya guardadas en `sessionStorage`.
+- Mantener el diseño visual actual (dark theme, Syne/DM Sans, Chart.js).
+
+---
+*Generado para uso con IA (Claude/GPT) — Coraza Seguridad C.T.A. — SGD v7.2*

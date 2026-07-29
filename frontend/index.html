@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.5">
+  <title>SGD CORAZA SEGURIDAD CTA v7.4</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<!-- ==================== LOGIN ==================== -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div style="text-align:center;margin-bottom:0">
+      <div class="login-logo"><img src="https://i.postimg.cc/MZ3TC2Wy/logo-resized.jpg" alt="Coraza"></div>
+      <div class="login-title">SGD CORAZA</div>
+      <div class="login-sub">Sistema de Gestión Documental · v7.4 SECURE EDITION</div>
+    </div>
+    <form id="loginForm" onsubmit="iniciarSesion(event)">
+      <div class="form-group" style="margin-bottom:14px">
+        <label><i class="fas fa-envelope" style="margin-right:5px"></i>Correo</label>
+        <input type="email" id="loginEmail" class="inp" value="admin@coraza.com" required>
+      </div>
+      <div class="form-group" style="margin-bottom:20px">
+        <label><i class="fas fa-lock" style="margin-right:5px"></i>Contraseña</label>
+        <input type="password" id="loginPassword" class="inp" value="Admin123" required>
+      </div>
+      <button type="submit" id="loginBtn" class="btn btn-primary w-full" style="padding:12px">
+        <i class="fas fa-sign-in-alt"></i> ACCEDER AL SISTEMA
+      </button>
+      <div id="loginError" class="alert alert-danger hidden" style="margin-top:14px"></div>
+    </form>
+    <div class="login-sec">
+      <i class="fas fa-shield-alt" style="color:var(--accent-green)"></i>
+      JWT Token · Encriptación Bcrypt · Auditoría inmutable · API REST Segura
+    </div>
+  </div>
+</div>
+
+<!-- ==================== MAIN APP ==================== -->
+<div id="mainApp" class="hidden">
+<div class="layout">
+
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-mark"><img src="https://i.postimg.cc/MZ3TC2Wy/logo-resized.jpg" alt="Coraza"></div>
+    <div><div class="logo-text">SGD CORAZA</div><div class="logo-ver">v7.4 SECURE</div></div>
+  </div>
+  <div class="sidebar-user">
+    <div class="user-avatar" id="userAv">A</div>
+    <div><div class="user-name" id="userName">Cargando...</div><div class="user-role" id="userRole">--</div></div>
+    <div class="sec-dot" title="Sesión activa"></div>
+  </div>
+  <nav style="flex:1;padding:10px 0;overflow-y:auto">
+    <div class="nav-label">Principal</div>
+    <button class="nav-item active" onclick="showSection('dashboard')"><i class="fas fa-th-large"></i>Dashboard</button>
+    <div class="nav-label">Gestión</div>
+    <button class="nav-item" onclick="showSection('minutas')"><i class="fas fa-file-signature"></i>Minutas</button>
+    <button class="nav-item" onclick="showSection('correspondencia')"><i class="fas fa-envelope"></i>Correspondencia</button>
+    <button class="nav-item" onclick="showSection('personal')"><i class="fas fa-user-minus"></i>Personal Inactivo</button>
+    <button class="nav-item" onclick="showSection('contratos')"><i class="fas fa-file-contract"></i>Contratos</button>
+    <button class="nav-item" onclick="showSection('biblioteca')"><i class="fas fa-book-open"></i>Biblioteca</button>
+    <button class="nav-item" onclick="showSection('prestamos')"><i class="fas fa-exchange-alt"></i>Préstamos</button>
+    <div class="nav-label">Enterprise</div>
+    <button class="nav-item" onclick="showSection('workflows')"><i class="fas fa-project-diagram"></i>Workflows<span class="nav-badge hidden" id="wfBadge">0</span></button>
+    <button class="nav-item" onclick="showSection('auditoria')"><i class="fas fa-shield-alt"></i>Auditoría</button>
+    <div class="nav-label">Análisis</div>
+    <button class="nav-item" onclick="showSection('informes')"><i class="fas fa-chart-bar"></i>Informes</button>
+    <button class="nav-item" onclick="showSection('busqueda')"><i class="fas fa-search"></i>Búsqueda</button>
+    <div class="nav-label">Sistema</div>
+    <button class="nav-item" onclick="showSection('usuarios')"><i class="fas fa-users-cog"></i>Usuarios</button>
+    <button class="nav-item" onclick="showSection('ajustes')"><i class="fas fa-sliders-h"></i>Ajustes</button>
+  </nav>
+  <div class="sidebar-footer">
+    <button class="btn-logout" onclick="cerrarSesion()"><i class="fas fa-sign-out-alt"></i>Cerrar sesión</button>
+  </div>
+</aside>
+
+<main class="main-content">
+  <header class="topbar">
+    <span class="page-title" id="pageTitle">Dashboard</span>
+    <div class="topbar-right">
+      <div class="clock" id="topbarClock">--:--:--</div>
+      <button class="topbar-btn" onclick="mostrarNotificaciones()" title="Notificaciones">
+        <i class="fas fa-bell"></i><span class="ndot" id="notifDot"></span>
+      </button>
+      <button class="topbar-btn" onclick="showSection('busqueda')" title="Buscar"><i class="fas fa-search"></i></button>
+    </div>
+  </header>
+  <div class="page-content">
+
+  <!-- DASHBOARD -->
+  <div id="dashboard" class="section active">
+    <div id="dashAlerts"></div>
+    <div class="kpi-grid" id="kpiGrid">
+      <div class="kpi-card" style="grid-column:1/-1;text-align:center;padding:30px"><i class="fas fa-spinner fa-spin" style="font-size:1.5rem;color:var(--accent-primary)"></i></div>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title"><i class="fas fa-chart-line"></i>Correspondencia por estado</span>
+          <span class="text-sm text-muted" id="dashTs">--</span>
+        </div>
+        <canvas id="chartCorr" height="200"></canvas>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title"><i class="fas fa-project-diagram"></i>Workflows pendientes</span>
+          <button class="btn btn-sm btn-ghost" onclick="showSection('workflows')">Ver todos</button>
+        </div>
+        <div id="dashWF"><div class="text-muted text-sm">Cargando...</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MINUTAS -->
+  <div id="minutas" class="section">
+    <div class="card">
+      <div class="card-header"><span class="card-title"><i class="fas fa-file-signature"></i>Registrar Minuta</span></div>
+      <form onsubmit="registrarMinuta(event)">
+        <div class="form-grid">
+          <div class="form-group"><label>Tipo *</label>
+            <select id="tipoMinuta" class="inp" required>
+              <option value="">Seleccione...</option>
+              <option value="VISITANTES">📋 VISITANTES</option>
+              <option value="CORRESPONDENCIA">📧 CORRESPONDENCIA</option>
+              <option value="SERVICIO">⚙️ SERVICIO</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Nombre del Puesto *</label><input type="text" id="nombrePuesto" class="inp" required placeholder="Ej: Puesto Central, Torre Norte..."></div>
+          <div class="form-group"><label>Fecha Inicio *</label><input type="date" id="fechaInicioMinuta" class="inp" required></div>
+          <div class="form-group"><label>Fecha Cierre</label><input type="date" id="fechaCierreMinuta" class="inp"></div>
+          <div class="form-group"><label>Ubicación física *</label><select id="voxelseraMinuta" class="inp" required></select></div>
+          <div class="form-group span-full"><label>Observaciones</label><textarea id="observacionesMinuta" class="inp" rows="3"></textarea></div>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-success"><i class="fas fa-check"></i>REGISTRAR</button>
+          <button type="button" class="btn btn-ghost" onclick="resetForm('minutas')"><i class="fas fa-eraser"></i>LIMPIAR</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- CORRESPONDENCIA -->
+  <div id="correspondencia" class="section">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="fas fa-envelope"></i>Registrar Correspondencia</span>
+        <span class="badge badge-active"><i class="fas fa-lock"></i>Auditoría activa</span>
+      </div>
+      <form onsubmit="registrarCorrespondencia(event)">
+        <div class="form-grid">
+          <div class="form-group"><label>Fecha *</label><input type="date" id="fechaDocumento" class="inp" required></div>
+          <div class="form-group"><label>Medio *</label>
+            <select id="medio" class="inp" required>
+              <option value="">Seleccione...</option>
+              <option value="FISICO">📦 Físico</option>
+              <option value="DIGITAL">💻 Digital</option>
+              <option value="EMAIL">📧 Email</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Tipo *</label><input type="text" id="tipoDocumento" class="inp" required placeholder="Oficio, Memorando, Carta..."></div>
+          <div class="form-group"><label>Depto. Origen *</label><select id="deptoOrigen" class="inp" required onchange="actualizarSeriesTRD()"></select></div>
+          <div class="form-group"><label>Depto. Destino</label><select id="deptoDestino" class="inp"></select></div>
+          <div class="form-group"><label>Serie TRD (Norma AGN) *</label>
+            <select id="serieTRD" class="inp" onchange="generarCodigoDoc()"></select>
+          </div>
+          <div class="form-group"><label>Estado *</label>
+            <select id="estadoDocumento" class="inp" required>
+              <option value="PENDIENTE">⏳ PENDIENTE — En espera de proceso</option>
+              <option value="ENVIADO">📤 ENVIADO — Despachado al destino</option>
+              <option value="RECIBIDO">📥 RECIBIDO — Confirmado en destino</option>
+              <option value="ENTREGADO">✅ ENTREGADO — Firmado y entregado</option>
+              <option value="DEVUELTO">🔄 DEVUELTO — Regresado al origen</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Código Oficial (Radicado TRD)</label><input type="text" id="codigoDocumento" class="inp" readonly style="opacity:.9; font-weight:700; color:var(--accent-primary);"></div>
+          <div class="form-group"><label>Asunto</label><input type="text" id="asunto" class="inp" placeholder="Breve descripción"></div>
+          <div class="form-group span-full"><label>Detalle</label><textarea id="detalle" class="inp" rows="3"></textarea></div>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-success"><i class="fas fa-check"></i>REGISTRAR</button>
+          <button type="button" class="btn btn-ghost" onclick="resetFormCorr()"><i class="fas fa-eraser"></i>LIMPIAR</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- LEYENDA DE ESTADOS -->
+    <div class="card" style="padding:16px 22px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <i class="fas fa-info-circle" style="color:var(--accent-cyan)"></i>
+        <span style="font-weight:700;font-size:.85rem">Guía de estados de correspondencia</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">
+        <div style="display:flex;align-items:flex-start;gap:10px;background:var(--bg-elevated);padding:10px 13px;border-radius:var(--r-md);border-left:3px solid var(--accent-amber)">
+          <span style="font-size:1.1rem">⏳</span>
+          <div><div style="font-size:.78rem;font-weight:700;color:var(--accent-amber)">PENDIENTE</div><div style="font-size:.72rem;color:var(--text-muted)">Documento en espera de ser procesado o enviado</div></div>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:10px;background:var(--bg-elevated);padding:10px 13px;border-radius:var(--r-md);border-left:3px solid var(--accent-glow)">
+          <span style="font-size:1.1rem">📤</span>
+          <div><div style="font-size:.78rem;font-weight:700;color:var(--accent-glow)">ENVIADO</div><div style="font-size:.72rem;color:var(--text-muted)">Despachado al destinatario, pendiente confirmación</div></div>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:10px;background:var(--bg-elevated);padding:10px 13px;border-radius:var(--r-md);border-left:3px solid var(--accent-cyan)">
+          <span style="font-size:1.1rem">📥</span>
+          <div><div style="font-size:.78rem;font-weight:700;color:var(--accent-cyan)">RECIBIDO</div><div style="font-size:.72rem;color:var(--text-muted)">Confirmado por el destinatario en su destino</div></div>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:10px;background:var(--bg-elevated);padding:10px 13px;border-radius:var(--r-md);border-left:3px solid var(--accent-green)">
+          <span style="font-size:1.1rem">✅</span>
+          <div><div style="font-size:.78rem;font-weight:700;color:var(--accent-green)">ENTREGADO</div><div style="font-size:.72rem;color:var(--text-muted)">Firmado y entregado físicamente al receptor</div></div>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:10px;background:var(--bg-elevated);padding:10px 13px;border-radius:var(--r-md);border-left:3px solid var(--accent-violet)">
+          <span style="font-size:1.1rem">🔄</span>
+          <div><div style="font-size:.78rem;font-weight:700;color:var(--accent-violet)">DEVUELTO</div><div style="font-size:.72rem;color:var(--text-muted)">Regresado al remitente por motivos de rechazo</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="fas fa-list"></i>Registros de Correspondencia</span>
+        <div class="flex-row">
+          <input type="date" id="filtroCorrDesde" class="inp" style="width:auto" onchange="renderCorr()">
+          <input type="date" id="filtroCorrHasta" class="inp" style="width:auto" onchange="renderCorr()">
+          <select id="filtroCorrOrigen" class="inp" style="width:auto" onchange="renderCorr()"><option value="todos">Todos orígenes</option></select>
+          <select id="filtroCorrEstado" class="inp" style="width:auto" onchange="renderCorr()">
+            <option value="todos">Todos estados</option>
+            <option value="PENDIENTE">⏳ Pendiente</option>
+            <option value="ENVIADO">📤 Enviado</option>
+            <option value="RECIBIDO">📥 Recibido</option>
+            <option value="ENTREGADO">✅ Entregado</option>
+            <option value="DEVUELTO">🔄 Devuelto</option>
+          </select>
+          <button class="btn btn-sm btn-ghost" onclick="limpiarFiltrosCorr()"><i class="fas fa-times"></i></button>
+          <button class="btn btn-sm btn-ghost" style="color:var(--accent-green);border-color:var(--accent-green);background:rgba(16,185,129,.05)" onclick="exportarTablaACSV('tablaCorr', 'Correspondencia_Coraza')"><i class="fas fa-file-excel"></i>Excel</button>
+          <button class="btn btn-sm btn-primary" onclick="cargarCorrespondencia()"><i class="fas fa-sync-alt"></i>Actualizar</button>
+        </div>
+      </div>
+      <div id="listaCorrespondencia"><div style="text-align:center;padding:30px;color:var(--text-muted)"><i class="fas fa-spinner fa-spin"></i></div></div>
+      <div class="pagination">
+        <button class="btn btn-sm btn-ghost" id="corrPrev" onclick="cambiarPaginaCorr(-1)" disabled><i class="fas fa-chevron-left"></i></button>
+        <span class="page-info" id="corrPagInfo">Pág. 1</span>
+        <button class="btn btn-sm btn-ghost" id="corrNext" onclick="cambiarPaginaCorr(1)"><i class="fas fa-chevron-right"></i></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PERSONAL INACTIVO -->
+  <div id="personal" class="section">
+    <div class="card">
+      <div class="card-header"><span class="card-title"><i class="fas fa-user-minus"></i>Registrar Personal Inactivo</span></div>
+      <form onsubmit="registrarPersonal(event)">
+        <div class="form-grid">
+          <div class="form-group"><label>Nombre completo *</label><input type="text" id="nombrePersonal" class="inp" required></div>
+          <div class="form-group"><label>Cédula *</label><input type="text" id="cedula" class="inp" required></div>
+          <div class="form-group"><label>Fecha Baja *</label><input type="date" id="fechaBaja" class="inp" required></div>
+          <div class="form-group"><label>Motivo</label><input type="text" id="motivoBaja" class="inp" placeholder="Renuncia, jubilación..."></div>
+          <div class="form-group"><label>Ubicación física *</label><select id="voxelseraPersonal" class="inp" required></select></div>
+          <div class="form-group span-full"><label>Observaciones</label><textarea id="observacionesPersonal" class="inp" rows="3"></textarea></div>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-success"><i class="fas fa-check"></i>REGISTRAR</button>
+          <button type="button" class="btn btn-ghost" onclick="resetForm('personal')"><i class="fas fa-eraser"></i>LIMPIAR</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- CONTRATOS -->
+  <div id="contratos" class="section">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="fas fa-file-contract"></i>Registrar Contrato</span>
+        <span class="badge badge-info"><i class="fas fa-robot"></i>Workflow automático &gt;$1M</span>
+      </div>
+      <form onsubmit="registrarContrato(event)">
+        <div class="form-grid">
+          <div class="form-group"><label>Tipo *</label><input type="text" id="tipoContrato" class="inp" required placeholder="Servicios, Obra, Laboral..."></div>
+          <div class="form-group"><label>Número</label><input type="text" id="numeroContrato" class="inp" placeholder="CTR-2025-001"></div>
+          <div class="form-group"><label>Parte A *</label><input type="text" id="parteA" class="inp" required placeholder="Contratante"></div>
+          <div class="form-group"><label>Parte B *</label><input type="text" id="parteB" class="inp" required placeholder="Contratista"></div>
+          <div class="form-group"><label>Fecha Inicio *</label><input type="date" id="fechaInicioContrato" class="inp" required></div>
+          <div class="form-group"><label>Fecha Fin</label><input type="date" id="fechaFinContrato" class="inp"></div>
+          <div class="form-group"><label>Valor ($)</label><input type="number" id="valorContrato" class="inp" step="0.01" placeholder="0.00"></div>
+          <div class="form-group"><label>Ubicación física *</label><select id="voxelseraContrato" class="inp" required></select></div>
+          <div class="form-group span-full"><label>Objeto del contrato *</label><textarea id="objetoContrato" class="inp" rows="3" required></textarea></div>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-success"><i class="fas fa-check"></i>REGISTRAR</button>
+          <button type="button" class="btn btn-ghost" onclick="resetForm('contratos')"><i class="fas fa-eraser"></i>LIMPIAR</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- BIBLIOTECA -->
+  <div id="biblioteca" class="section">
+    <div class="card">
+      <div class="card-header"><span class="card-title"><i class="fas fa-book-open"></i>Biblioteca Documental</span>
+        <button class="btn btn-sm btn-ghost" onclick="mostrarModalCarpeta()"><i class="fas fa-folder-plus"></i>Nueva carpeta</button>
+      </div>
+      <div class="grid-lib">
+        <div class="folder-tree" style="height:460px" id="arbolCarpetas"></div>
+        <div class="folder-tree" style="height:460px" id="contenidoCarpeta"></div>
+      </div>
+      <div style="border-top:1px solid var(--border-subtle);margin-top:22px;padding-top:22px">
+        <div class="card-title" style="margin-bottom:18px"><i class="fas fa-upload"></i>Subir nuevo documento</div>
+        <form onsubmit="subirBiblioteca(event)">
+          <div class="form-grid">
+            <div class="form-group"><label>Categoría *</label><select id="catBib" class="inp" required></select></div>
+            <div class="form-group"><label>Nombre *</label><input type="text" id="nomBib" class="inp" required></div>
+            <div class="form-group"><label>Versión *</label><input type="text" id="verBib" class="inp" value="1.0" required></div>
+            <div class="form-group"><label>Carpeta destino *</label><select id="carpBib" class="inp" required></select></div>
+            <div class="form-group"><label>Fecha elaboración *</label><input type="date" id="fechaBib" class="inp" required></div>
+            <div class="form-group"><label>URL archivo *</label><input type="url" id="urlBib" class="inp" required placeholder="https://drive.google.com/..."></div>
+            <div class="form-group"><label>Responsable *</label><input type="text" id="respBib" class="inp" required></div>
+            <div class="form-group span-full"><label>Descripción del cambio *</label><textarea id="descBib" class="inp" rows="2" required></textarea></div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-success"><i class="fas fa-upload"></i>SUBIR</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- PRÉSTAMOS -->
+  <div id="prestamos" class="section">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="fas fa-exchange-alt"></i>Gestión de Préstamos</span>
+        <span class="badge badge-info"><i class="fas fa-bell"></i>Alertas email automáticas</span>
+      </div>
+      <form onsubmit="registrarPrestamo(event)">
+        <div class="form-grid">
+          <div class="form-group"><label>Solicitante *</label><input type="text" id="solicitantePrestamo" class="inp" required></div>
+          <div class="form-group"><label>Departamento *</label><select id="deptoPrestamo" class="inp" required></select></div>
+          <div class="form-group"><label>Documento *</label><input type="text" id="docPrestamo" class="inp" required></div>
+          <div class="form-group"><label>Código</label><input type="text" id="codDocPrestamo" class="inp"></div>
+          <div class="form-group"><label>Fecha Préstamo *</label><input type="date" id="fechaPrestamo" class="inp" required></div>
+          <div class="form-group"><label>Fecha Devolución *</label><input type="date" id="fechaDevPrestamo" class="inp" required></div>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-success"><i class="fas fa-check"></i>REGISTRAR</button>
+          <button type="button" class="btn btn-ghost" onclick="resetFormPrestamo()"><i class="fas fa-eraser"></i>LIMPIAR</button>
+        </div>
+      </form>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="fas fa-list"></i>Estado de préstamos</span>
+        <div class="flex-row">
+          <select id="filtroPrestEstado" class="inp" style="width:auto" onchange="filtrarPrestamos()">
+            <option value="todos">Todos</option><option value="ACTIVO">🟢 Activos</option>
+            <option value="VENCIDO">🔴 Vencidos</option><option value="DEVUELTO">✅ Devueltos</option>
+          </select>
+          <select id="filtroPrestDepto" class="inp" style="width:auto" onchange="filtrarPrestamos()"><option value="todos">Todos los dptos</option></select>
+          <button class="btn btn-sm btn-ghost" onclick="limpiarFiltrosPrest()"><i class="fas fa-times"></i></button>
+          <button class="btn btn-sm btn-ghost" style="color:var(--accent-green);border-color:var(--accent-green);background:rgba(16,185,129,.05)" onclick="exportarTablaACSV('tablaPrest', 'Prestamos_Coraza')"><i class="fas fa-file-excel"></i>Excel</button>
+          <button class="btn btn-sm btn-primary" onclick="cargarPrestamos()"><i class="fas fa-sync-alt"></i>Actualizar</button>
+        </div>
+      </div>
+      <div id="listaPrestamos"><div style="text-align:center;padding:30px;color:var(--text-muted)"><i class="fas fa-spinner fa-spin"></i></div></div>
+    </div>
+  </div>
+
+  <!-- WORKFLOWS -->
+  <div id="workflows" class="section">
+    <div class="alert alert-info"><i class="fas fa-info-circle"></i>Se crean automáticamente para contratos &gt;$1M. También puedes crear workflows manuales.</div>
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="fas fa-project-diagram"></i>Workflows pendientes</span>
+        <button class="btn btn-sm btn-primary" onclick="cargarWorkflows()"><i class="fas fa-sync-alt"></i>Actualizar</button>
+      </div>
+      <div id="listaWF"></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-title"><i class="fas fa-plus-circle"></i>Crear Workflow Manual</span></div>
+      <div class="form-grid">
+        <div class="form-group"><label>Tipo</label>
+          <select id="wfTipo" class="inp">
+            <option value="APROBACION_DOCUMENTO">Aprobación Documento</option>
+            <option value="REVISION_CONTRATO">Revisión Contrato</option>
+            <option value="AUTORIZACION_PRESTAMO">Autorización Préstamo</option>
+            <option value="CUSTOM">Personalizado</option>
+          </select>
+        </div>
+        <div class="form-group"><label>ID Documento</label><input type="text" id="wfDocId" class="inp" placeholder="CTR-001, GH001..."></div>
+        <div class="form-group"><label>Email aprobador *</label><input type="email" id="wfAprobador" class="inp" placeholder="gerencia@corazacta.com"></div>
+        <div class="form-group"><label>SLA (días)</label><input type="number" id="wfSLA" class="inp" value="3" min="1" max="30"></div>
+        <div class="form-group span-full"><label>Comentarios</label><input type="text" id="wfComentarios" class="inp"></div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" onclick="crearWFManual()"><i class="fas fa-paper-plane"></i>ENVIAR A APROBACIÓN</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- AUDITORÍA -->
+  <div id="auditoria" class="section">
+    <div class="alert alert-success"><i class="fas fa-lock"></i>Registro inmutable · Solo lectura · Append-only · SQL Database</div>
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="fas fa-shield-alt"></i>Log de Auditoría Inmutable</span>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span class="badge badge-active"><i class="fas fa-lock"></i>APPEND-ONLY</span>
+          <button class="btn btn-sm btn-ghost" onclick="cargarAuditoria()"><i class="fas fa-sync-alt"></i>Actualizar</button>
+        </div>
+      </div>
+      <div id="logAuditoria"><div class="text-muted text-sm">Cargando...</div></div>
+      <div style="display:flex;justify-content:center;margin-top:18px;gap:10px;align-items:center">
+        <button class="btn btn-sm btn-ghost" id="audPrev" onclick="cambiarPagAud(-1)" disabled><i class="fas fa-chevron-left"></i>Anterior</button>
+        <span class="text-sm text-muted" id="audPagInfo" style="padding:8px 12px">Página 1</span>
+        <button class="btn btn-sm btn-ghost" id="audNext" onclick="cambiarPagAud(1)">Siguiente<i class="fas fa-chevron-right"></i></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- INFORMES -->
+  <div id="informes" class="section">
+    <div class="card" id="cardConfigInf">
+      <div class="card-header">
+        <span class="card-title"><i class="fas fa-sliders-h"></i>Configurar Informe</span>
+        <span class="badge badge-info">Datos en tiempo real</span>
+      </div>
+      <div class="form-group" style="margin-bottom:18px">
+        <label>Título *</label>
+        <input type="text" id="infTitulo" class="inp" value="Informe de Gestión Documental">
+      </div>
+      <div style="margin-bottom:18px">
+        <label style="display:block;margin-bottom:10px;font-size:.78rem;font-weight:600;color:var(--text-secondary);text-transform:uppercase">Módulos</label>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px">
+          <label style="display:flex;align-items:center;gap:8px;background:var(--bg-elevated);border:1px solid var(--border-medium);border-radius:var(--r-md);padding:10px 14px;cursor:pointer"><input type="checkbox" id="chkMin" checked style="accent-color:var(--accent-primary)"><span style="font-size:.86rem;font-weight:600">📋 Minutas</span></label>
+          <label style="display:flex;align-items:center;gap:8px;background:var(--bg-elevated);border:1px solid var(--border-medium);border-radius:var(--r-md);padding:10px 14px;cursor:pointer"><input type="checkbox" id="chkCorr" checked style="accent-color:var(--accent-primary)"><span style="font-size:.86rem;font-weight:600">📧 Correspondencia</span></label>
+          <label style="display:flex;align-items:center;gap:8px;background:var(--bg-elevated);border:1px solid var(--border-medium);border-radius:var(--r-md);padding:10px 14px;cursor:pointer"><input type="checkbox" id="chkPers" checked style="accent-color:var(--accent-primary)"><span style="font-size:.86rem;font-weight:600">👥 Personal</span></label>
+          <label style="display:flex;align-items:center;gap:8px;background:var(--bg-elevated);border:1px solid var(--border-medium);border-radius:var(--r-md);padding:10px 14px;cursor:pointer"><input type="checkbox" id="chkCont" checked style="accent-color:var(--accent-primary)"><span style="font-size:.86rem;font-weight:600">📑 Contratos</span></label>
+          <label style="display:flex;align-items:center;gap:8px;background:var(--bg-elevated);border:1px solid var(--border-medium);border-radius:var(--r-md);padding:10px 14px;cursor:pointer"><input type="checkbox" id="chkPrest" checked style="accent-color:var(--accent-primary)"><span style="font-size:.86rem;font-weight:600">🔄 Préstamos</span></label>
+          <label style="display:flex;align-items:center;gap:8px;background:var(--bg-elevated);border:1px solid var(--border-medium);border-radius:var(--r-md);padding:10px 14px;cursor:pointer"><input type="checkbox" id="chkBib" style="accent-color:var(--accent-primary)"><span style="font-size:.86rem;font-weight:600">📚 Biblioteca</span></label>
+        </div>
+      </div>
+      <div class="grid-2" style="margin-bottom:18px">
+        <div class="form-group"><label>Fecha inicio *</label><input type="date" id="infFI" class="inp"></div>
+        <div class="form-group"><label>Fecha fin *</label><input type="date" id="infFF" class="inp"></div>
+      </div>
+      <div class="form-group" style="margin-bottom:22px">
+        <label>Nota legal</label>
+        <textarea id="infEnunciado" class="inp" rows="2">Este informe es propiedad interna de Coraza Seguridad C.T.A. Contenido confidencial.</textarea>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" onclick="generarInforme()" style="padding:12px 28px"><i class="fas fa-bolt"></i>GENERAR INFORME</button>
+        <button class="btn btn-ghost" onclick="resetInforme()"><i class="fas fa-eraser"></i>LIMPIAR</button>
+      </div>
+    </div>
+    <div id="infResultados" class="hidden"></div>
+    <div id="infVacio" style="text-align:center;padding:60px;color:var(--text-muted)">
+      <i class="fas fa-chart-bar" style="font-size:3.5rem;opacity:.15"></i>
+      <div style="margin-top:14px">Configure y genere su informe</div>
+    </div>
+  </div>
+
+  <!-- BÚSQUEDA -->
+  <div id="busqueda" class="section">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="fas fa-search"></i>Buscador Universal</span>
+        <span class="badge badge-info" id="totalRes">0 resultados</span>
+      </div>
+      <div class="flex-row" style="margin-bottom:20px">
+        <div style="flex:2;position:relative;min-width:240px">
+          <i class="fas fa-search" style="position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:.85rem"></i>
+          <input type="text" id="searchInput" class="inp" style="padding-left:40px" placeholder="Código, cédula, nombre, asunto..." onkeyup="busquedaInstantanea()">
+        </div>
+        <select id="filtroTipo" class="inp" style="width:170px" onchange="ejecutarBusqueda()">
+          <option value="todos">📌 Todos</option>
+          <option value="correspondencia">📧 Correspondencia</option>
+          <option value="personal">👤 Personal</option>
+          <option value="contratos">📑 Contratos</option>
+          <option value="biblioteca">📚 Biblioteca</option>
+          <option value="minutas">📋 Minutas</option>
+          <option value="prestamos">🔄 Préstamos</option>
+        </select>
+        <button class="btn btn-primary" onclick="ejecutarBusqueda()"><i class="fas fa-search"></i>Buscar</button>
+      </div>
+      <!-- Filtros Avanzados -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:20px;padding:12px;background:var(--bg-base);border-radius:var(--r-md);border:1px solid var(--border-subtle)">
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <label style="font-size:0.68rem;font-weight:700;">Fecha Desde</label>
+          <input type="date" id="searchFInicio" class="inp" style="padding:6px 10px;font-size:0.8rem;" onchange="ejecutarBusqueda()">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <label style="font-size:0.68rem;font-weight:700;">Fecha Hasta</label>
+          <input type="date" id="searchFFin" class="inp" style="padding:6px 10px;font-size:0.8rem;" onchange="ejecutarBusqueda()">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <label style="font-size:0.68rem;font-weight:700;">Departamento</label>
+          <input type="text" id="searchDepto" class="inp" style="padding:6px 10px;font-size:0.8rem;" placeholder="Ej: Contabilidad" onkeyup="busquedaInstantanea()">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <label style="font-size:0.68rem;font-weight:700;">Estado / Categoría</label>
+          <input type="text" id="searchEstado" class="inp" style="padding:6px 10px;font-size:0.8rem;" placeholder="Ej: ACTIVO" onkeyup="busquedaInstantanea()">
+        </div>
+      </div>
+      <div id="resultadosBusqueda"></div>
+      <div style="margin-top:28px">
+        <div class="card-title" style="margin-bottom:12px"><i class="fas fa-map-marked-alt"></i>Mapa de Archivo Físico</div>
+        <div style="display:flex;gap:14px;margin-bottom:10px;flex-wrap:wrap">
+          <span class="badge badge-active">● Ocupado</span>
+          <span class="badge" style="background:var(--bg-elevated);color:var(--text-muted);border:1px solid var(--border-medium)">○ Disponible</span>
+        </div>
+        <div class="mapa-grid" id="mapaArchivo"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- USUARIOS -->
+  <div id="usuarios" class="section">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="fas fa-users-cog"></i>Gestión de Usuarios</span>
+        <button class="btn btn-primary btn-sm" onclick="document.getElementById('modalUsuario').classList.add('show')"><i class="fas fa-user-plus"></i>Nuevo usuario</button>
+      </div>
+      <div class="alert alert-success" style="margin-bottom:18px;font-size:.78rem"><i class="fas fa-shield-alt"></i>Contraseñas con SHA-256 e inicio seguro</div>
+      <div id="listaUsuarios"><div style="text-align:center;padding:30px;color:var(--text-muted)"><i class="fas fa-spinner fa-spin"></i></div></div>
+    </div>
+  </div>
+
+  <!-- AJUSTES -->
+  <div id="ajustes" class="section">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px">
+      <div class="card">
+        <div class="card-title" style="margin-bottom:18px"><i class="fas fa-tools"></i>Herramientas de Servidor</div>
+        <div style="display:flex;flex-direction:column;gap:9px">
+          <button class="btn btn-success" onclick="inicializarBD()"><i class="fas fa-database"></i>Inicializar Base de Datos SQL</button>
+          <button class="btn btn-ghost" onclick="probarConexion()"><i class="fas fa-wifi"></i>Probar conexión de red</button>
+          <button class="btn btn-ghost" onclick="limpiarCacheLocal()"><i class="fas fa-broom"></i>Limpiar almacenamiento local</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:18px"><i class="fas fa-info-circle"></i>Información del sistema</div>
+        <div style="display:flex;flex-direction:column;gap:10px;font-size:.86rem">
+          <div style="display:flex;justify-content:space-between"><span class="text-muted">Versión</span><span class="text-gold fw-700">v7.4 SECURE EDITION</span></div>
+          <div style="display:flex;justify-content:space-between"><span class="text-muted">Base de Datos</span><span class="text-green fw-700">PostgreSQL ✓</span></div>
+          <div style="display:flex;justify-content:space-between"><span class="text-muted">Motor Backend</span><span class="text-green fw-700">Node.js + Express ✓</span></div>
+          <div style="display:flex;justify-content:space-between"><span class="text-muted">Sesiones</span><span class="text-green fw-700">Tokens JWT ✓</span></div>
+          <div style="display:flex;justify-content:space-between"><span class="text-muted">Auditoría</span><span class="text-green fw-700">SQL Inmutable ✓</span></div>
+          <div style="display:flex;justify-content:space-between"><span class="text-muted">Slots físicos</span><span class="fw-700">180 (A-D × 1-9 × 1-5)</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  </div><!-- /.page-content -->
+</main>
+</div><!-- /.layout -->
+</div><!-- /#mainApp -->
+
+<!-- CHAT FAB -->
+<button class="chat-fab hidden" id="chatFab" onclick="toggleChat()">
+  <img src="https://i.postimg.cc/CLBXH9cb/12rr.png" alt="IA">
+</button>
+<div class="chat-panel hidden" id="chatPanel">
+  <div class="chat-top">
+    <div class="chat-avatar"><img src="https://i.postimg.cc/CLBXH9cb/12rr.png" alt="IA"></div>
+    <div><div class="chat-name">CORAZA IA</div><div class="chat-status"><span style="width:6px;height:6px;background:var(--accent-green);border-radius:50%;display:inline-block"></span>v7.4 Secure · En línea</div></div>
+    <div style="margin-left:auto;display:flex;gap:7px">
+      <button class="topbar-btn" onclick="nuevaConv()" title="Nueva conversación"><i class="fas fa-plus"></i></button>
+      <button class="topbar-btn" onclick="toggleChat()"><i class="fas fa-times"></i></button>
+    </div>
+  </div>
+  <div id="chatMsgs" class="chat-msgs"></div>
+  <div id="chatTyping" class="chat-typing hidden"><i class="fas fa-circle-notch fa-spin"></i>CORAZA IA procesando...</div>
+  <div class="chat-bottom">
+    <input type="text" id="chatInp" class="chat-inp" placeholder="Pregunta sobre documentos, contratos, personal..." onkeypress="if(event.key==='Enter'&&!this.disabled) enviarChat()">
+    <button class="chat-send" id="chatSend" onclick="enviarChat()"><i class="fas fa-paper-plane"></i></button>
+  </div>
+</div>
+
+<!-- MODAL CONFIRMACIÓN -->
+<div class="modal-ov" id="modalConfirm">
+  <div class="modal-box" style="border-color:rgba(16,185,129,.25)">
+    <div class="modal-icon" id="mIcon">✅</div>
+    <div class="modal-title" id="mTitle">OPERACIÓN EXITOSA</div>
+    <div class="modal-code" id="mCode">---</div>
+    <div class="modal-msg" id="mMsg"></div>
+    <button class="btn btn-primary w-full" onclick="cerrarModal()"><i class="fas fa-check"></i>CONFIRMAR</button>
+  </div>
+</div>
+
+<!-- MODAL DETALLES DE BUSQUEDA -->
+<div class="modal-ov" id="modalDetalleBusqueda">
+  <div class="modal-box" style="max-width: 580px; max-height: 85vh; display: flex; flex-direction: column;">
+    <div class="modal-hdr" style="border-bottom: 1px solid var(--border-medium); padding-bottom: 12px;">
+      <span class="card-title" style="font-size: 1.1rem; color: var(--accent-primary);"><i class="fas fa-search-plus"></i> Detalles del Registro</span>
+      <button class="topbar-btn" onclick="document.getElementById('modalDetalleBusqueda').classList.remove('show')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body" id="detalleBusquedaBody" style="padding: 18px 0; overflow-y: auto; flex: 1; min-height: 0;">
+      <!-- Se inyecta dinámicamente -->
+    </div>
+    <div style="border-top: 1px solid var(--border-medium); padding-top: 12px; display: flex; justify-content: flex-end;">
+      <button class="btn btn-primary btn-sm" style="padding: 8px 24px;" onclick="document.getElementById('modalDetalleBusqueda').classList.remove('show')"><i class="fas fa-times"></i> Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL NUEVA CARPETA -->
+<div class="modal-ov" id="modalCarpeta">
+  <div class="modal-box">
+    <div class="modal-hdr"><span class="card-title"><i class="fas fa-folder-plus"></i>Nueva Carpeta</span>
+      <button class="topbar-btn" onclick="document.getElementById('modalCarpeta').classList.remove('show')"><i class="fas fa-times"></i></button>
+    </div>
+    <form onsubmit="crearCarpeta(event)">
+      <div class="form-group" style="margin-bottom:13px"><label>Nombre *</label><input type="text" id="nomCarpeta" class="inp" required placeholder="PROCEDIMIENTOS SST"></div>
+      <div class="form-group" style="margin-bottom:13px"><label>Carpeta padre</label><select id="padreCarpeta" class="inp"><option value="RAIZ">📁 MI BIBLIOTECA</option></select></div>
+      <div class="form-group" style="margin-bottom:20px"><label>Color</label><input type="color" id="colorCarpeta" value="#2563eb" style="width:100%;height:42px;border-radius:var(--r-md);border:1px solid var(--border-medium);background:var(--bg-elevated);cursor:pointer"></div>
+      <div style="display:flex;gap:9px">
+        <button type="submit" class="btn btn-success" style="flex:1;justify-content:center">CREAR</button>
+        <button type="button" class="btn btn-ghost" onclick="document.getElementById('modalCarpeta').classList.remove('show')">CANCELAR</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL NUEVO USUARIO -->
+<div class="modal-ov" id="modalUsuario">
+  <div class="modal-box">
+    <div class="modal-hdr"><span class="card-title"><i class="fas fa-user-plus"></i>Nuevo Usuario</span>
+      <button class="topbar-btn" onclick="document.getElementById('modalUsuario').classList.remove('show')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="alert alert-success" style="margin-bottom:16px;font-size:.78rem"><i class="fas fa-shield-alt"></i>Contraseña almacenada con encriptación bcrypt</div>
+    <form onsubmit="registrarUsuario(event)">
+      <div class="form-group" style="margin-bottom:12px"><label>Email *</label><input type="email" id="uEmail" class="inp" required placeholder="usuario@coraza.com"></div>
+      <div class="form-group" style="margin-bottom:12px"><label>Contraseña *</label><input type="password" id="uPass" class="inp" minlength="6" required></div>
+      <div class="form-group" style="margin-bottom:12px"><label>Nombre *</label><input type="text" id="uNombre" class="inp" required></div>
+      <div class="form-group" style="margin-bottom:12px"><label>Departamento *</label><select id="uDepto" class="inp" required></select></div>
+      <div class="form-group" style="margin-bottom:20px"><label>Rol *</label>
+        <select id="uRol" class="inp" required>
+          <option value="USUARIO">👤 USUARIO</option>
+          <option value="SUPERVISOR">👥 SUPERVISOR</option>
+          <option value="ADMINISTRADOR">👑 ADMINISTRADOR</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:9px">
+        <button type="submit" class="btn btn-success" style="flex:1;justify-content:center">REGISTRAR</button>
+        <button type="button" class="btn btn-ghost" onclick="document.getElementById('modalUsuario').classList.remove('show')">CANCELAR</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="app.js" defer></script>
+</body>
+</html>
