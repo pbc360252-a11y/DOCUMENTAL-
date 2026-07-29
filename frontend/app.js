@@ -155,16 +155,22 @@ function popularSelectsConfig() {
   if(deptoPrestamo) deptoPrestamo.innerHTML = opciones;
   if(uDepto) uDepto.innerHTML = opciones;
 
-  // Llenar selectores de ubicaciones físicas (Voxelsera)
-  const voxels = ['VOXEL_A1', 'VOXEL_A2', 'VOXEL_B1', 'VOXEL_B2', 'VOXEL_C1', 'VOXEL_C2', 'VOXEL_D1', 'VOXEL_D2'];
-  const voxelOptions = voxels.map(v => `<option value="${v}">${v}</option>`).join('');
+  // Llenar selectores de ubicaciones físicas (Voxelsera A1 - D9)
+  const voxels = [];
+  ['A', 'B', 'C', 'D'].forEach(l => {
+    for (let i = 1; i <= 9; i++) {
+      voxels.push({ id: `VOXEL_${l}${i}`, label: `📦 Estante ${l} - Nivel ${i} (VOXEL_${l}${i})` });
+    }
+  });
+  const voxelOptions = '<option value="">-- Seleccionar Compartimento Físico --</option>' + voxels.map(v => `<option value="${v.id}">${v.label}</option>`).join('');
   
-  document.getElementById('voxelseraMinuta').innerHTML = voxelOptions;
-  document.getElementById('voxelseraPersonal').innerHTML = voxelOptions;
-  document.getElementById('voxelseraContrato').innerHTML = voxelOptions;
+  if (document.getElementById('voxelseraMinuta')) document.getElementById('voxelseraMinuta').innerHTML = voxelOptions;
+  if (document.getElementById('voxelseraPersonal')) document.getElementById('voxelseraPersonal').innerHTML = voxelOptions;
+  if (document.getElementById('voxelseraContrato')) document.getElementById('voxelseraContrato').innerHTML = voxelOptions;
+  if (document.getElementById('voxelseraCorr')) document.getElementById('voxelseraCorr').innerHTML = voxelOptions;
 
   // Selectores de biblioteca
-  document.getElementById('catBib').innerHTML = '<option value="POLITICAS">Políticas</option><option value="MANUALES">Manuales</option><option value="REGISTROS">Registros</option>';
+  if (document.getElementById('catBib')) document.getElementById('catBib').innerHTML = '<option value="POLITICAS">Políticas</option><option value="MANUALES">Manuales</option><option value="REGISTROS">Registros</option>';
   
   actualizarSeriesTRD();
 }
@@ -769,6 +775,7 @@ async function mostrarDetalleRegistro(id, modulo) {
     if (res.success && res.detalle) {
       const d = res.detalle;
       let rowsHtml = '';
+      let slotFisico = d.voxelsera || d.ubicacion || '';
       
       for (const [key, val] of Object.entries(d)) {
         if (val !== null && val !== undefined && val !== '') {
@@ -786,10 +793,17 @@ async function mostrarDetalleRegistro(id, modulo) {
         }
       }
 
+      const glowBtn = slotFisico ? `
+        <button class="btn btn-primary w-full" style="margin-top:14px;padding:10px;background:linear-gradient(135deg,#38bdf8,#f59e0b);border:none;color:#fff;font-weight:800;letter-spacing:0.5px;box-shadow:0 0 15px rgba(245,158,11,0.4)" onclick="iluminarUbicacionFisica('${slotFisico}')">
+          ✨ ILUMINAR EN MAPA DE ARCHIVO FÍSICO (${slotFisico})
+        </button>
+      ` : '';
+
       body.innerHTML = `
         <div style="background:var(--bg-elevated);padding:14px;border-radius:var(--r-md);border:1px solid var(--border-medium);margin-bottom:14px">
           <div style="font-size:0.75rem;font-weight:700;color:var(--accent-primary);text-transform:uppercase">${modulo}</div>
           <div style="font-size:1.2rem;font-weight:800;color:var(--text-primary);margin-top:2px">${d.codigo_unico || d.codigo_documento || d.numero_contrato || d.cedula || d.id}</div>
+          ${glowBtn}
         </div>
         ${rowsHtml}
       `;
@@ -798,6 +812,41 @@ async function mostrarDetalleRegistro(id, modulo) {
     }
   } catch(e) {
     body.innerHTML = '<div class="alert alert-danger">Error de conexión al obtener los detalles del registro.</div>';
+  }
+}
+
+function iluminarUbicacionFisica(slotId) {
+  if (!slotId) return;
+  
+  // Cerrar modal de búsqueda si está abierto
+  const modal = document.getElementById('modalDetalleBusqueda');
+  if (modal) modal.classList.remove('show');
+
+  // Asegurar que la sección búsqueda está activa
+  showSection('busqueda');
+
+  // Quitar resaltados anteriores
+  document.querySelectorAll('.slot').forEach(s => s.classList.remove('highlight'));
+
+  // Normalizar slotId
+  const idNorm = slotId.startsWith('VOXEL_') ? slotId : `VOXEL_${slotId}`;
+  const el = document.getElementById(`slot_${idNorm}`);
+
+  if (el) {
+    el.classList.add('highlight');
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    Swal.fire({
+      toast: true,
+      position: 'top-end',
+      icon: 'success',
+      title: `✨ UBICACIÓN FÍSICA ILUMINADA`,
+      text: `El compartimento ${idNorm} se encuentra brillando en el mapa de abajo.`,
+      showConfirmButton: false,
+      timer: 4000
+    });
+  } else {
+    Swal.fire('Ubicación Física', `Este documento está guardado en el compartimento físico: ${slotId}`, 'info');
   }
 }
 
