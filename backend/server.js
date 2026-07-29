@@ -482,45 +482,82 @@ app.get('/api/busqueda', autenticarToken, async (req, res) => {
   const { query } = req.query;
   try {
     const searchVal = `%${query || ''}%`;
+    const numVal = parseInt(query) || 0;
     const resultados = [];
 
-    // Búsqueda en Minutas
+    // 1. Minutas
     const minutas = await db.query(
-      "SELECT id, tipo_minuta, nombre_puesto, codigo_unico, fecha_registro FROM minutas WHERE tipo_minuta ILIKE $1 OR nombre_puesto ILIKE $1 OR codigo_unico ILIKE $1",
-      [searchVal]
+      `SELECT id, tipo_minuta, nombre_puesto, codigo_unico, voxelsera, fecha_registro FROM minutas 
+       WHERE codigo_unico ILIKE $1 OR nombre_puesto ILIKE $1 OR voxelsera ILIKE $1 OR codigo_numerico = $2 LIMIT 50`,
+      [searchVal, numVal]
     );
     minutas.rows.forEach(r => resultados.push({
-      modulo: 'MINUTAS',
+      modulo: '📋 MINUTAS',
       titulo: `${r.tipo_minuta} - ${r.nombre_puesto}`,
       codigo: r.codigo_unico,
       fecha: r.fecha_registro,
-      id: r.id
+      id: r.id,
+      detalles: { VOXELSERA: r.voxelsera }
     }));
 
-    // Búsqueda en Correspondencia
+    // 2. Correspondencia
     const corr = await db.query(
-      "SELECT id, codigo_documento, asunto, detalle, fecha_registro FROM correspondencia WHERE codigo_documento ILIKE $1 OR asunto ILIKE $1 OR detalle ILIKE $1",
+      `SELECT id, codigo_documento, depto_origen, depto_destino, asunto, detalle, voxelsera, fecha_registro FROM correspondencia 
+       WHERE codigo_documento ILIKE $1 OR asunto ILIKE $1 OR detalle ILIKE $1 OR depto_origen ILIKE $1 OR voxelsera ILIKE $1 LIMIT 50`,
       [searchVal]
     );
     corr.rows.forEach(r => resultados.push({
-      modulo: 'CORRESPONDENCIA',
-      titulo: `${r.asunto} (${r.detalle})`,
+      modulo: '📧 CORRESPONDENCIA',
+      titulo: `[${r.depto_origen}] ${r.asunto}`,
       codigo: r.codigo_documento,
       fecha: r.fecha_registro,
-      id: r.id
+      id: r.id,
+      detalles: { VOXELSERA: r.voxelsera, DESTINO: r.depto_destino }
     }));
 
-    // Búsqueda en Contratos
+    // 3. Contratos
     const contratos = await db.query(
-      "SELECT id, tipo_contrato, numero_contrato, objeto_contrato, fecha_registro FROM contratos WHERE tipo_contrato ILIKE $1 OR numero_contrato ILIKE $1 OR objeto_contrato ILIKE $1",
+      `SELECT id, tipo_contrato, numero_contrato, parte_a, parte_b, objeto_contrato, voxelsera, fecha_registro FROM contratos 
+       WHERE numero_contrato ILIKE $1 OR parte_a ILIKE $1 OR parte_b ILIKE $1 OR objeto_contrato ILIKE $1 OR voxelsera ILIKE $1 LIMIT 50`,
       [searchVal]
     );
     contratos.rows.forEach(r => resultados.push({
-      modulo: 'CONTRATOS',
-      titulo: `${r.tipo_contrato} - ${r.objeto_contrato}`,
+      modulo: '📑 CONTRATOS',
+      titulo: `${r.tipo_contrato} (${r.parte_a} - ${r.parte_b})`,
       codigo: r.numero_contrato,
       fecha: r.fecha_registro,
-      id: r.id
+      id: r.id,
+      detalles: { VOXELSERA: r.voxelsera, OBJETO: r.objeto_contrato }
+    }));
+
+    // 4. Asociados Retirados (Personal Inactivo)
+    const asociados = await db.query(
+      `SELECT id, nombre_completo, cedula, motivo_baja, voxelsera, fecha_baja FROM personal_inactivo 
+       WHERE nombre_completo ILIKE $1 OR cedula ILIKE $1 OR motivo_baja ILIKE $1 OR voxelsera ILIKE $1 LIMIT 50`,
+      [searchVal]
+    );
+    asociados.rows.forEach(r => resultados.push({
+      modulo: '🤝 ASOCIADOS RETIRADOS',
+      titulo: `${r.nombre_completo} (Motivo: ${r.motivo_baja || 'N/A'})`,
+      codigo: `CC: ${r.cedula}`,
+      fecha: r.fecha_baja,
+      id: r.id,
+      detalles: { VOXELSERA: r.voxelsera, CEDULA: r.cedula }
+    }));
+
+    // 5. Préstamos
+    const prestamos = await db.query(
+      `SELECT id, solicitante, departamento, documento, codigo_documento, fecha_prestamo, estado FROM prestamos 
+       WHERE solicitante ILIKE $1 OR documento ILIKE $1 OR codigo_documento ILIKE $1 OR departamento ILIKE $1 LIMIT 50`,
+      [searchVal]
+    );
+    prestamos.rows.forEach(r => resultados.push({
+      modulo: '🔄 PRESTAMOS',
+      titulo: `[${r.estado}] Solicitante: ${r.solicitante} (${r.documento})`,
+      codigo: r.codigo_documento || r.id,
+      fecha: r.fecha_prestamo,
+      id: r.id,
+      detalles: { ESTADO: r.estado, DEPTO: r.departamento }
     }));
 
     res.json({ success: true, resultados, total: resultados.length });
