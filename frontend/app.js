@@ -163,8 +163,8 @@ function popularSelectsConfig() {
   if(deptoPrestamo) deptoPrestamo.innerHTML = opciones;
   if(uDepto) uDepto.innerHTML = opciones;
 
-  // Llenar selectores de ubicaciones físicas según la regla de negocio:
-  // A1-A9: Minutas | B1-B9: Asociados Retirados | C1-C9: Contratos | D1-D9: Correspondencia
+  // Llenar selectores de ubicaciones físicas según regla de negocio:
+  // A1-A9: Minutas | B1-B9: Asociados Retirados | C1-C9: Contratos | D1-D9: Estantería Libre / Salida del Día
   const optionsMinuta = '<option value="">-- Seleccionar Compartimento Minuta (A1-A9) --</option>' + 
     Array.from({length:9}, (_, i) => `<option value="VOXEL_A${i+1}">📋 Estante A - Compartimento A${i+1} (Minutas)</option>`).join('');
 
@@ -174,8 +174,8 @@ function popularSelectsConfig() {
   const optionsContrato = '<option value="">-- Seleccionar Compartimento Contratos (C1-C9) --</option>' + 
     Array.from({length:9}, (_, i) => `<option value="VOXEL_C${i+1}">📑 Estante C - Compartimento C${i+1} (Contratos)</option>`).join('');
 
-  const optionsCorr = '<option value="">-- Seleccionar Compartimento Correspondencia (D1-D9) --</option>' + 
-    Array.from({length:9}, (_, i) => `<option value="VOXEL_D${i+1}">📧 Estante D - Compartimento D${i+1} (Correspondencia)</option>`).join('');
+  const optionsCorr = '<option value="">⚡ Entregado en el día (No ocupa estantería permanente)</option>' + 
+    Array.from({length:9}, (_, i) => `<option value="VOXEL_D${i+1}">📦 Estante D - Compartimento Libre D${i+1} (Temporal)</option>`).join('');
 
   if (document.getElementById('voxelseraMinuta')) document.getElementById('voxelseraMinuta').innerHTML = optionsMinuta;
   if (document.getElementById('voxelseraPersonal')) document.getElementById('voxelseraPersonal').innerHTML = optionsPersonal;
@@ -703,7 +703,7 @@ async function cargarMapaArchivo() {
       'A': { titulo: 'ESTANTE A — MINUTAS (A1 - A9)', icon: 'fas fa-file-signature', color: 'var(--accent-cyan)' },
       'B': { titulo: 'ESTANTE B — ASOCIADOS RETIRADOS (B1 - B9)', icon: 'fas fa-user-minus', color: 'var(--accent-gold)' },
       'C': { titulo: 'ESTANTE C — CONTRATOS (C1 - C9)', icon: 'fas fa-file-contract', color: 'var(--accent-violet)' },
-      'D': { titulo: 'ESTANTE D — CORRESPONDENCIA Y OTROS (D1 - D9)', icon: 'fas fa-envelope', color: 'var(--accent-primary)' }
+      'D': { titulo: 'ESTANTE D — ESTANTERÍA LIBRE / SALIDA DEL DÍA (D1 - D9)', icon: 'fas fa-box-open', color: 'var(--accent-green)' }
     };
 
     for (let l of letras) {
