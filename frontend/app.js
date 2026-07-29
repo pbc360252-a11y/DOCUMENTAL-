@@ -1681,7 +1681,12 @@ function renderArbolCarpetas() {
     html += `
       <div onclick="seleccionarCarpetaBib('${c.id}')" style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-radius:6px;cursor:pointer;background:${isSel ? 'var(--accent-primary)' : 'var(--bg-elevated)'};color:${isSel ? '#fff' : 'var(--text-primary)'};font-weight:600;margin-bottom:6px;border:1px solid ${isSel ? 'var(--accent-primary)' : 'var(--border-subtle)'}">
         <span style="display:flex;align-items:center;gap:8px"><i class="fas fa-folder" style="color:${isSel ? '#fff' : (c.color || 'var(--accent-amber)')}"></i> ${c.nombre}</span>
-        <span class="badge" style="background:${isSel ? 'rgba(255,255,255,0.2)' : 'var(--bg-card)'};color:${isSel ? '#fff' : 'var(--text-muted)'}">${numArchivos}</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span class="badge" style="background:${isSel ? 'rgba(255,255,255,0.2)' : 'var(--bg-card)'};color:${isSel ? '#fff' : 'var(--text-muted)'}">${numArchivos}</span>
+          <button class="btn btn-sm btn-ghost" onclick="eliminarCarpetaBiblioteca('${c.id}', '${c.nombre}', event)" title="Eliminar carpeta" style="padding:2px 6px;color:${isSel ? '#fff' : 'var(--accent-red)'}">
+            <i class="fas fa-trash-alt"></i>
+          </button>
+        </div>
       </div>
     `;
   });
@@ -1734,8 +1739,11 @@ function renderContenidoCarpeta(carpetaId) {
           <div style="font-weight:800;color:var(--accent-primary);font-size:0.95rem;margin-top:4px">${a.nombre}</div>
           <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:2px"><i class="fas fa-user-edit"></i> ${a.responsable || 'N/A'} · <i class="fas fa-calendar-alt"></i> ${fElab}</div>
         </div>
-        <div>
+        <div style="display:flex;align-items:center;gap:8px">
           ${a.url ? `<a href="${a.url}" target="_blank" class="btn btn-sm btn-primary" style="padding:6px 12px"><i class="fas fa-external-link-alt"></i> Abrir</a>` : `<span class="text-sm text-muted">Sin enlace</span>`}
+          <button class="btn btn-sm btn-ghost" onclick="eliminarArchivoBiblioteca('${a.id}', '${a.nombre}')" title="Eliminar documento" style="padding:6px 10px;color:var(--accent-red);background:rgba(239,68,68,0.1)">
+            <i class="fas fa-trash-alt"></i>
+          </button>
         </div>
       </div>
     `;
@@ -1743,6 +1751,61 @@ function renderContenidoCarpeta(carpetaId) {
 
   html += '</div>';
   contenidoDiv.innerHTML = html;
+}
+
+async function eliminarCarpetaBiblioteca(carpetaId, nombreCarpeta, event) {
+  if (event) event.stopPropagation();
+
+  const confirm = await Swal.fire({
+    title: '¿Eliminar Carpeta?',
+    text: `¿Estás seguro de eliminar la carpeta "${nombreCarpeta}"? Los documentos contenidos no se perderán, se moverán a la Raíz.`,
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#ef4444',
+    confirmButtonText: 'Sí, eliminar carpeta',
+    cancelButtonText: 'Cancelar'
+  });
+
+  if (confirm.isConfirmed) {
+    try {
+      const res = await apiCall(`/api/biblioteca/carpetas/${carpetaId}`, 'DELETE');
+      if (res && res.success) {
+        Swal.fire('¡Eliminada!', res.message || '✅ Carpeta eliminada con éxito', 'success');
+        if (window._bibCarpetaActiva === carpetaId) window._bibCarpetaActiva = 'RAIZ';
+        cargarBiblioteca();
+      } else {
+        Swal.fire('Error', res.message || 'No se pudo eliminar la carpeta', 'error');
+      }
+    } catch(e) {
+      Swal.fire('Error', 'Fallo al conectar con el servidor', 'error');
+    }
+  }
+}
+
+async function eliminarArchivoBiblioteca(archivoId, nombreArchivo) {
+  const confirm = await Swal.fire({
+    title: '¿Eliminar Documento?',
+    text: `¿Estás seguro de eliminar el documento "${nombreArchivo}" de la biblioteca?`,
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#ef4444',
+    confirmButtonText: 'Sí, eliminar',
+    cancelButtonText: 'Cancelar'
+  });
+
+  if (confirm.isConfirmed) {
+    try {
+      const res = await apiCall(`/api/biblioteca/archivos/${archivoId}`, 'DELETE');
+      if (res && res.success) {
+        Swal.fire('¡Eliminado!', res.message || '✅ Documento eliminado con éxito', 'success');
+        cargarBiblioteca();
+      } else {
+        Swal.fire('Error', res.message || 'No se pudo eliminar el documento', 'error');
+      }
+    } catch(e) {
+      Swal.fire('Error', 'Fallo al conectar con el servidor', 'error');
+    }
+  }
 }
 
 async function subirBiblioteca(event) {

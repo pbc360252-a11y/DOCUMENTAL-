@@ -602,6 +602,28 @@ app.post('/api/biblioteca/archivos', autenticarToken, async (req, res) => {
     res.status(500).json({ success: false, message: e.message });
   }
 });
+app.delete('/api/biblioteca/carpetas/:id', autenticarToken, async (req, res) => {
+  const { id } = req.params;
+  try {
+    await db.query(`UPDATE biblioteca SET carpeta_id = 'RAIZ' WHERE carpeta_id = $1`, [id]);
+    await db.query(`DELETE FROM biblioteca_carpetas WHERE id = $1`, [id]);
+    await registrarAuditoria(req.user.email, 'BIBLIOTECA', 'ELIMINAR_CARPETA', `Carpeta eliminada: ${id}`, 'EXITO');
+    res.json({ success: true, message: '✅ Carpeta eliminada con éxito' });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+app.delete('/api/biblioteca/archivos/:id', autenticarToken, async (req, res) => {
+  const { id } = req.params;
+  try {
+    await db.query(`UPDATE biblioteca SET estado = 'ELIMINADO' WHERE id = $1`, [id]);
+    await registrarAuditoria(req.user.email, 'BIBLIOTECA', 'ELIMINAR_ARCHIVO', `Archivo eliminado: ${id}`, 'EXITO');
+    res.json({ success: true, message: '✅ Documento eliminado de la biblioteca' });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
 
 // ==========================================
 // 9. BÚSQUEDA UNIVERSAL (ORM GLOBAL EN SQL)
