@@ -423,6 +423,84 @@ app.get('/api/prestamos/estado', autenticarToken, async (req, res) => {
 });
 
 // ==========================================
+// NOTIFICACIONES E INTERACCIÓN AUTOMÁTICA DE DATOS
+// ==========================================
+
+app.get('/api/notificaciones', autenticarToken, async (req, res) => {
+  try {
+    const alertas = [];
+
+    // 1. Auto-marcar y detectar préstamos vencidos
+    await db.query(`UPDATE prestamos SET estado = 'VENCIDO' WHERE estado = 'ACTIVO' AND fecha_devolucion < CURRENT_DATE`);
+
+    const prestamosVencidos = await db.query(
+      `SELECT * FROM prestamos WHERE estado = 'VENCIDO' OR (estado = 'ACTIVO' AND fecha_devolucion < CURRENT_DATE) ORDER BY fecha_devolucion ASC`
+    );
+
+    prestamosVencidos.rows.forEach(p => {
+      alertas.push({
+        id: `ALT-PREST-V-${p.id}`,
+        tipo: 'PRESTAMO_VENCIDO',
+        nivel: 'critico',
+        icon: 'fas fa-exclamation-triangle',
+        titulo: `🔴 Préstamo Vencido (${p.id})`,
+        mensaje: `El documento "${p.documento || 'Sin título'}" prestado a ${p.solicitante || 'N/A'} (${p.departamento || 'Dpto'}) venció el ${String(p.fecha_devolucion).substring(0, 10)}.`,
+        fecha: p.fecha_devolucion,
+        modulo: 'prestamos',
+        idRegistro: p.id
+      });
+    });
+
+    // 2. Detectar préstamos próximos a vencer (en los próximos 3 días)
+    const prestamosPorVencer = await db.query(
+      `SELECT * FROM prestamos WHERE estado = 'ACTIVO' AND fecha_devolucion >= CURRENT_DATE AND fecha_devolucion <= CURRENT_DATE + INTERVAL '3 days'`
+    );
+
+    prestamosPorVencer.rows.forEach(p => {
+      alertas.push({
+        id: `ALT-PREST-PV-${p.id}`,
+        tipo: 'PRESTAMO_POR_VENCER',
+        nivel: 'advertencia',
+        icon: 'fas fa-clock',
+        titulo: `🟡 Préstamo Próximo a Vencer (${p.id})`,
+        mensaje: `El préstamo del documento "${p.documento || 'Sin título'}" a ${p.solicitante || 'N/A'} vence el ${String(p.fecha_devolucion).substring(0, 10)}.`,
+        fecha: p.fecha_devolucion,
+        modulo: 'prestamos',
+        idRegistro: p.id
+      });
+    });
+
+    // 3. Detectar contratos por vencer (próximos 30 días)
+    const contratosPorVencer = await db.query(
+      `SELECT * FROM contratos WHERE estado = 'VIGENTE' AND fecha_fin >= CURRENT_DATE AND fecha_fin <= CURRENT_DATE + INTERVAL '30 days'`
+    );
+
+    contratosPorVencer.rows.forEach(c => {
+      alertas.push({
+        id: `ALT-CTR-PV-${c.id}`,
+        tipo: 'CONTRATO_POR_VENCER',
+        nivel: 'advertencia',
+        icon: 'fas fa-file-contract',
+        titulo: `📑 Contrato por Vencer (${c.numero_contrato || c.id})`,
+        mensaje: `El contrato entre ${c.parte_a || 'Parte A'} y ${c.parte_b || 'Parte B'} vence el ${String(c.fecha_fin).substring(0, 10)}.`,
+        fecha: c.fecha_fin,
+        modulo: 'contratos',
+        idRegistro: c.id
+      });
+    });
+
+    res.json({
+      success: true,
+      totalAlertas: alertas.length,
+      alertas
+    });
+  } catch(e) {
+    console.error('Error al generar notificaciones:', e);
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+// ==========================================
 // 7. WORKFLOWS
 // ==========================================
 

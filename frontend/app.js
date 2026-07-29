@@ -1028,7 +1028,95 @@ function showSection(secId) {
   if (secId === 'busqueda') ejecutarBusqueda();
 }
 
+window.sistemaAlertas = [];
+
+async function actualizarNotificacionesSistema() {
+  const notifDot = document.getElementById('notifDot');
+  try {
+    const res = await apiCall('/api/notificaciones');
+    if (res && res.success) {
+      window.sistemaAlertas = res.alertas || [];
+      const total = res.totalAlertas || 0;
+
+      if (notifDot) {
+        if (total > 0) {
+          notifDot.style.display = 'inline-flex';
+          notifDot.style.alignItems = 'center';
+          notifDot.style.justifyContent = 'center';
+          notifDot.style.minWidth = '18px';
+          notifDot.style.height = '18px';
+          notifDot.style.borderRadius = '9px';
+          notifDot.style.fontSize = '0.7rem';
+          notifDot.style.fontWeight = '800';
+          notifDot.style.color = '#fff';
+          notifDot.style.padding = '0 4px';
+          notifDot.textContent = total > 9 ? '9+' : total;
+          notifDot.style.background = res.alertas.some(a => a.nivel === 'critico') ? 'var(--accent-red)' : 'var(--accent-amber)';
+        } else {
+          notifDot.style.display = 'none';
+        }
+      }
+    }
+  } catch(e) {
+    console.error('Error al actualizar notificaciones:', e);
+  }
+}
+
+function mostrarNotificaciones() {
+  const alertas = window.sistemaAlertas || [];
+  
+  if (alertas.length === 0) {
+    Swal.fire({
+      title: '🔔 Sin Alertas Pendientes',
+      text: 'Todos los préstamos y contratos se encuentran al día.',
+      icon: 'success',
+      confirmButtonText: 'Entendido'
+    });
+    return;
+  }
+
+  let htmlCards = '<div style="display:flex;flex-direction:column;gap:12px;max-height:420px;overflow-y:auto;text-align:left;padding-right:4px">';
+  
+  alertas.forEach(a => {
+    const isCritico = a.nivel === 'critico';
+    const bgCol = isCritico ? 'rgba(239, 68, 68, 0.08)' : 'rgba(245, 158, 11, 0.08)';
+    const borderCol = isCritico ? 'var(--accent-red)' : 'var(--accent-amber)';
+
+    htmlCards += `
+      <div style="background:${bgCol};border-left:4px solid ${borderCol};border-radius:8px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,0.05)">
+        <div style="font-weight:800;font-size:0.92rem;color:var(--text-primary);display:flex;align-items:center;gap:8px">
+          <i class="${a.icon}" style="color:${borderCol}"></i> ${a.titulo}
+        </div>
+        <div style="font-size:0.83rem;color:var(--text-secondary);margin-top:6px;line-height:1.45">
+          ${a.mensaje}
+        </div>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-sm btn-ghost" onclick="Swal.close(); showSection('${a.modulo}')">
+            <i class="fas fa-arrow-right"></i> Ver en ${a.modulo.toUpperCase()}
+          </button>
+          ${a.modulo === 'prestamos' ? `
+            <button class="btn btn-sm btn-primary" onclick="Swal.close(); devolverPrestamo('${a.idRegistro}')">
+              <i class="fas fa-undo"></i> Registrar Devolución
+            </button>
+          ` : ''}
+        </div>
+      </div>
+    `;
+  });
+
+  htmlCards += '</div>';
+
+  Swal.fire({
+    title: `🔔 Alertas y Notificaciones (${alertas.length})`,
+    html: htmlCards,
+    width: '540px',
+    showCloseButton: true,
+    showConfirmButton: false
+  });
+}
+
 function iniciarClocksYPolling() {
+  actualizarNotificacionesSistema();
   setInterval(() => {
     const clock = document.getElementById('topbarClock');
     if(clock) {
@@ -1036,6 +1124,11 @@ function iniciarClocksYPolling() {
       clock.textContent = d.toLocaleTimeString();
     }
   }, 1000);
+
+  // Polling de notificaciones cada 45 segundos
+  setInterval(() => {
+    actualizarNotificacionesSistema();
+  }, 45000);
 }
 
 function cargarTodoElSistema() {
@@ -1047,6 +1140,7 @@ function cargarTodoElSistema() {
   try { cargarPrestamos(); } catch(e) { console.error('Error cargarPrestamos:', e); }
   try { cargarWorkflows(); } catch(e) { console.error('Error cargarWorkflows:', e); }
   try { ejecutarBusqueda(); } catch(e) { console.error('Error ejecutarBusqueda:', e); }
+  try { actualizarNotificacionesSistema(); } catch(e) { console.error('Error actualizarNotificaciones:', e); }
 }
 // ==========================================
 // 7. MÓDULO DE PRÉSTAMOS DE DOCUMENTOS
