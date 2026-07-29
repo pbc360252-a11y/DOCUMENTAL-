@@ -1767,6 +1767,17 @@ window.todosLosContratos = [];
 
 async function cargarContratos() {
   const container = document.getElementById('listaContratos');
+  const inputNum = document.getElementById('numeroContrato');
+
+  // Auto-obtener el siguiente código consecutivo oficial (CTR-395-2026)
+  try {
+    const resCod = await apiCall('/api/contratos/siguiente-codigo');
+    if (resCod && resCod.success && inputNum) {
+      inputNum.value = resCod.codigoSugerido;
+      inputNum.placeholder = resCod.codigoSugerido;
+    }
+  } catch(e) {}
+
   if (!container) return;
 
   container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted)"><i class="fas fa-spinner fa-spin"></i> Cargando contratos desde PostgreSQL...</div>';

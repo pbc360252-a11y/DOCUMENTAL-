@@ -329,17 +329,33 @@ app.put('/api/personal-inactivo/:id/tipo', autenticarToken, async (req, res) => 
 // 5. CONTRATOS
 // ==========================================
 
+app.get('/api/contratos/siguiente-codigo', autenticarToken, async (req, res) => {
+  try {
+    const result = await db.query('SELECT MAX(codigo_numerico) as max_num FROM contratos');
+    const maxNum = (result.rows[0] && result.rows[0].max_num) ? parseInt(result.rows[0].max_num) : 394;
+    const nextNum = maxNum + 1;
+    const year = new Date().getFullYear();
+    const codigoSugerido = `CTR-${nextNum}-${year}`;
+    res.json({ success: true, siguienteNumero: nextNum, codigoSugerido });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 app.post('/api/contratos', autenticarToken, async (req, res) => {
   const { tipo, numero, parteA, parteB, fechaInicio, fechaFin, valor, objeto } = req.body;
   try {
     const id = `CTR-${Date.now()}`;
-    const nextVal = await obtenerSiguienteNumeroSecuencial('contratos', 'id', null, null);
-    const cn = String(nextVal).padStart(2, '0');
+    const maxRes = await db.query('SELECT MAX(codigo_numerico) as max_num FROM contratos');
+    const maxNum = (maxRes.rows[0] && maxRes.rows[0].max_num) ? parseInt(maxRes.rows[0].max_num) : 394;
+    const nextVal = maxNum + 1;
+    const year = new Date().getFullYear();
+    const numFinal = numero && numero.trim() ? numero.trim() : `CTR-${nextVal}-${year}`;
 
     await db.query(
       `INSERT INTO contratos (id, tipo_contrato, numero_contrato, parte_a, parte_b, fecha_inicio, fecha_fin, valor_contrato, objeto_contrato, voxelsera, estado, codigo_numerico) 
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-      [id, tipo, numero || id, parteA, parteB, fechaInicio || new Date(), fechaFin || null, parseFloat(valor) || 0, objeto, '', 'VIGENTE', nextVal]
+      [id, tipo, numFinal, parteA, parteB, fechaInicio || new Date(), fechaFin || null, parseFloat(valor) || 0, objeto, 'C1', 'VIGENTE', nextVal]
     );
 
     // Disparar Workflow si el valor supera 1,000,000 COP
@@ -352,8 +368,8 @@ app.post('/api/contratos', autenticarToken, async (req, res) => {
       );
     }
 
-    await registrarAuditoria(req.user.email, 'CONTRATOS', 'REGISTRO', `Contrato N°: ${numero || id}`, 'EXITO');
-    res.json({ success: true, id, codigo: cn, message: '✅ Contrato registrado con éxito' });
+    await registrarAuditoria(req.user.email, 'CONTRATOS', 'REGISTRO', `Contrato N°: ${numFinal} (#${nextVal})`, 'EXITO');
+    res.json({ success: true, id, codigo: numFinal, numeroSequencial: nextVal, message: `✅ Contrato registrado con éxito (Consecutivo #${nextVal})` });
   } catch(e) {
     await registrarAuditoria(req.user.email, 'CONTRATOS', 'REGISTRO_ERROR', e.message, 'ERROR');
     res.status(500).json({ success: false, message: e.message });
