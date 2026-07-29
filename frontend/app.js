@@ -1456,8 +1456,8 @@ async function cargarDashboard() {
         </div>
         <div class="kpi-card" style="--kpi-color:var(--accent-violet);cursor:pointer" onclick="showSection('contratos')" title="Ver contratos vigentes">
           <span class="kpi-icon">📑</span>
-          <div class="kpi-value">${res.contratos.toLocaleString('es-CO')}</div>
-          <div class="kpi-label">Contratos Vigentes</div>
+          <div class="kpi-value">${(res.maxContrato || 394).toLocaleString('es-CO')}</div>
+          <div class="kpi-label">Contratos (Secuencia #${res.maxContrato || 394})</div>
         </div>
         <div class="kpi-card" style="--kpi-color:var(--accent-amber);cursor:pointer" onclick="showSection('prestamos')" title="Ver préstamos de documentos">
           <span class="kpi-icon">🔄</span>
@@ -1529,8 +1529,8 @@ async function cargarDashboard() {
 
             <div style="background:var(--bg-elevated);padding:12px;border-radius:var(--r-md);border:1px solid var(--border-subtle);cursor:pointer" onclick="showSection('contratos')">
               <div style="font-size:0.75rem;font-weight:700;color:var(--accent-violet);text-transform:uppercase">Contratos Vigentes</div>
-              <div style="font-size:1.3rem;font-weight:800;color:var(--text-primary);margin-top:2px">${res.contratos.toLocaleString('es-CO')}</div>
-              <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px">Documentos contractuales</div>
+              <div style="font-size:1.3rem;font-weight:800;color:var(--text-primary);margin-top:2px">${(res.maxContrato || 394).toLocaleString('es-CO')}</div>
+              <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px">Último Consecutivo: #${res.maxContrato || 394}</div>
             </div>
 
             <div style="background:var(--bg-elevated);padding:12px;border-radius:var(--r-md);border:1px solid var(--border-subtle);cursor:pointer" onclick="showSection('busqueda')">
