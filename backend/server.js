@@ -535,8 +535,23 @@ app.post('/api/workflows/resolver', autenticarToken, async (req, res) => {
 
 app.get('/api/biblioteca/arbol', autenticarToken, async (req, res) => {
   try {
-    const resCarpetas = await db.query('SELECT * FROM biblioteca_carpetas');
+    let resCarpetas = await db.query('SELECT * FROM biblioteca_carpetas');
     const resArchivos = await db.query('SELECT * FROM biblioteca WHERE estado = \'ACTIVO\'');
+
+    if (resCarpetas.rows.length === 0) {
+      const defaultCarpetas = [
+        { id: 'DIR-POLITICAS', nombre: 'Políticas Institucionales', padre: 'RAIZ', color: '#2563eb' },
+        { id: 'DIR-MANUALES', nombre: 'Manuales de Operaciones', padre: 'RAIZ', color: '#06b6d4' },
+        { id: 'DIR-REGISTROS', nombre: 'Reglamentos y Formatos CTA', padre: 'RAIZ', color: '#f59e0b' },
+        { id: 'DIR-SST', nombre: 'Seguridad y Salud SG-SST', padre: 'RAIZ', color: '#10b981' },
+        { id: 'DIR-JURIDICO', nombre: 'Documentación Jurídica', padre: 'RAIZ', color: '#8b5cf6' }
+      ];
+      for (const c of defaultCarpetas) {
+        await db.query('INSERT INTO biblioteca_carpetas (id, nombre, padre, color) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING', [c.id, c.nombre, c.padre, c.color]);
+      }
+      resCarpetas = await db.query('SELECT * FROM biblioteca_carpetas');
+    }
+
     res.json({ success: true, carpetas: resCarpetas.rows, archivos: resArchivos.rows });
   } catch(e) {
     res.status(500).json({ success: false, message: e.message });

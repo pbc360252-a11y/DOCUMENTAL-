@@ -1159,6 +1159,7 @@ function showSection(secId) {
   if (secId === 'personal') cargarPersonal();
   if (secId === 'prestamos') cargarPrestamos();
   if (secId === 'busqueda') ejecutarBusqueda();
+  if (secId === 'biblioteca') cargarBiblioteca();
 }
 
 window.sistemaAlertas = [];
@@ -1272,6 +1273,7 @@ function cargarTodoElSistema() {
   try { cargarMapaArchivo(); } catch(e) { console.error('Error cargarMapaArchivo:', e); }
   try { cargarPrestamos(); } catch(e) { console.error('Error cargarPrestamos:', e); }
   try { cargarWorkflows(); } catch(e) { console.error('Error cargarWorkflows:', e); }
+  try { cargarBiblioteca(); } catch(e) { console.error('Error cargarBiblioteca:', e); }
   try { ejecutarBusqueda(); } catch(e) { console.error('Error ejecutarBusqueda:', e); }
   try { actualizarNotificacionesSistema(); } catch(e) { console.error('Error actualizarNotificaciones:', e); }
 }
@@ -1565,6 +1567,195 @@ function resetFormPrestamo() {
   document.getElementById('solicitantePrestamo').value = '';
   document.getElementById('docPrestamo').value = '';
   document.getElementById('codDocPrestamo').value = '';
+}
+
+// ==========================================
+// 8. BIBLIOTECA DOCUMENTAL
+// ==========================================
+window._bibCarpetas = [];
+window._bibArchivos = [];
+window._bibCarpetaActiva = 'RAIZ';
+
+async function cargarBiblioteca() {
+  const arbolDiv = document.getElementById('arbolCarpetas');
+  const contenidoDiv = document.getElementById('contenidoCarpeta');
+  const carpSelect = document.getElementById('carpBib');
+  const catSelect = document.getElementById('catBib');
+  
+  if (catSelect && catSelect.children.length === 0) {
+    catSelect.innerHTML = '<option value="POLITICAS">📜 Políticas Institucionales</option><option value="MANUALES">📖 Manuales de Operaciones</option><option value="REGISTROS">📋 Reglamentos y Formatos CTA</option><option value="SST">🦺 Seguridad y Salud SG-SST</option><option value="JURIDICO">⚖️ Documentos Jurídicos</option>';
+  }
+
+  if (arbolDiv) arbolDiv.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted)"><i class="fas fa-spinner fa-spin"></i> Cargando carpetas...</div>';
+
+  try {
+    const res = await apiCall('/api/biblioteca/arbol');
+    if (res && res.success) {
+      window._bibCarpetas = res.carpetas || [];
+      window._bibArchivos = res.archivos || [];
+
+      if (carpSelect) {
+        let opts = '<option value="RAIZ">📁 Raíz de Biblioteca</option>';
+        window._bibCarpetas.forEach(c => {
+          opts += `<option value="${c.id}">📂 ${c.nombre}</option>`;
+        });
+        carpSelect.innerHTML = opts;
+      }
+
+      renderArbolCarpetas();
+      renderContenidoCarpeta(window._bibCarpetaActiva || 'RAIZ');
+    }
+  } catch(e) {
+    if (arbolDiv) arbolDiv.innerHTML = '<div class="alert alert-danger">Error al cargar la Biblioteca</div>';
+  }
+}
+
+function renderArbolCarpetas() {
+  const arbolDiv = document.getElementById('arbolCarpetas');
+  if (!arbolDiv) return;
+
+  const carpetas = window._bibCarpetas;
+  const activa = window._bibCarpetaActiva || 'RAIZ';
+
+  let html = `
+    <div style="font-size:0.75rem;font-weight:800;color:var(--text-secondary);text-transform:uppercase;margin-bottom:10px">Estructura de Directorios</div>
+    <div onclick="seleccionarCarpetaBib('RAIZ')" style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:6px;cursor:pointer;background:${activa === 'RAIZ' ? 'var(--accent-primary)' : 'transparent'};color:${activa === 'RAIZ' ? '#fff' : 'var(--text-primary)'};font-weight:700;margin-bottom:6px">
+      <i class="fas fa-folder-open"></i> Raíz de Biblioteca
+    </div>
+  `;
+
+  carpetas.forEach(c => {
+    const isSel = activa === c.id;
+    const numArchivos = window._bibArchivos.filter(a => a.carpeta_id === c.id).length;
+    html += `
+      <div onclick="seleccionarCarpetaBib('${c.id}')" style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-radius:6px;cursor:pointer;background:${isSel ? 'var(--accent-primary)' : 'var(--bg-elevated)'};color:${isSel ? '#fff' : 'var(--text-primary)'};font-weight:600;margin-bottom:6px;border:1px solid ${isSel ? 'var(--accent-primary)' : 'var(--border-subtle)'}">
+        <span style="display:flex;align-items:center;gap:8px"><i class="fas fa-folder" style="color:${isSel ? '#fff' : (c.color || 'var(--accent-amber)')}"></i> ${c.nombre}</span>
+        <span class="badge" style="background:${isSel ? 'rgba(255,255,255,0.2)' : 'var(--bg-card)'};color:${isSel ? '#fff' : 'var(--text-muted)'}">${numArchivos}</span>
+      </div>
+    `;
+  });
+
+  arbolDiv.innerHTML = html;
+}
+
+function seleccionarCarpetaBib(carpetaId) {
+  window._bibCarpetaActiva = carpetaId;
+  renderArbolCarpetas();
+  renderContenidoCarpeta(carpetaId);
+  
+  const carpSelect = document.getElementById('carpBib');
+  if (carpSelect) carpSelect.value = carpetaId;
+}
+
+function renderContenidoCarpeta(carpetaId) {
+  const contenidoDiv = document.getElementById('contenidoCarpeta');
+  if (!contenidoDiv) return;
+
+  const archivos = window._bibArchivos.filter(a => (a.carpeta_id || 'RAIZ') === carpetaId);
+  const nombreCarpeta = carpetaId === 'RAIZ' ? 'Raíz de Biblioteca' : (window._bibCarpetas.find(c => c.id === carpetaId)?.nombre || 'Carpeta Seleccionada');
+
+  if (archivos.length === 0) {
+    contenidoDiv.innerHTML = `
+      <div style="font-size:0.75rem;font-weight:800;color:var(--text-secondary);text-transform:uppercase;margin-bottom:10px">Documentos en ${nombreCarpeta}</div>
+      <div style="text-align:center;padding:40px 10px;color:var(--text-muted);background:var(--bg-elevated);border-radius:8px;border:1px dashed var(--border-medium)">
+        <i class="fas fa-folder-open" style="font-size:2.5rem;opacity:0.3"></i>
+        <div style="margin-top:10px;font-weight:600">Carpeta Vacía</div>
+        <small style="color:var(--text-muted)">Utilice el formulario inferior para subir nuevos documentos a este directorio.</small>
+      </div>
+    `;
+    return;
+  }
+
+  let html = `
+    <div style="font-size:0.75rem;font-weight:800;color:var(--text-secondary);text-transform:uppercase;margin-bottom:10px">Documentos en ${nombreCarpeta} (${archivos.length})</div>
+    <div style="display:flex;flex-direction:column;gap:8px;max-height:400px;overflow-y:auto">
+  `;
+
+  archivos.forEach(a => {
+    const fElab = a.fecha_elaboracion ? String(a.fecha_elaboracion).substring(0, 10) : '--';
+    html += `
+      <div style="background:var(--bg-elevated);border:1px solid var(--border-medium);border-radius:8px;padding:12px;display:flex;justify-content:space-between;align-items:center;gap:10px">
+        <div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span class="badge badge-info" style="font-size:0.65rem;font-weight:700">${a.categoria || 'DOCUMENTO'}</span>
+            <span class="badge badge-subtle" style="font-size:0.65rem;font-weight:700">v${a.version || '1.0'}</span>
+          </div>
+          <div style="font-weight:800;color:var(--accent-primary);font-size:0.95rem;margin-top:4px">${a.nombre}</div>
+          <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:2px"><i class="fas fa-user-edit"></i> ${a.responsable || 'N/A'} · <i class="fas fa-calendar-alt"></i> ${fElab}</div>
+        </div>
+        <div>
+          ${a.url ? `<a href="${a.url}" target="_blank" class="btn btn-sm btn-primary" style="padding:6px 12px"><i class="fas fa-external-link-alt"></i> Abrir</a>` : `<span class="text-sm text-muted">Sin enlace</span>`}
+        </div>
+      </div>
+    `;
+  });
+
+  html += '</div>';
+  contenidoDiv.innerHTML = html;
+}
+
+async function subirBiblioteca(event) {
+  event.preventDefault();
+  const categoria = document.getElementById('catBib').value;
+  const nombre = document.getElementById('nomBib').value;
+  const version = document.getElementById('verBib').value;
+  const carpetaId = document.getElementById('carpBib').value;
+  const fechaElab = document.getElementById('fechaBib').value;
+  const url = document.getElementById('urlBib').value;
+  const responsable = document.getElementById('respBib').value;
+  const descCambio = document.getElementById('descBib').value;
+
+  try {
+    const res = await apiCall('/api/biblioteca/archivos', 'POST', {
+      categoria, nombre, version, carpetaId, fechaElab, url, responsable, descCambio
+    });
+
+    if (res && res.success) {
+      Swal.fire('¡Éxito!', res.message || '✅ Documento registrado en la biblioteca', 'success');
+      document.getElementById('nomBib').value = '';
+      document.getElementById('urlBib').value = '';
+      document.getElementById('descBib').value = '';
+      cargarBiblioteca();
+    } else {
+      Swal.fire('Error', res.message || 'No se pudo registrar el documento', 'error');
+    }
+  } catch(e) {
+    Swal.fire('Error', 'Fallo de comunicación con el servidor', 'error');
+  }
+}
+
+async function mostrarModalCarpeta() {
+  const { value: nombreCarpeta } = await Swal.fire({
+    title: '📁 Crear Nueva Carpeta en Biblioteca',
+    input: 'text',
+    inputLabel: 'Nombre de la carpeta',
+    inputPlaceholder: 'Ej: Procedimientos Operativos 2026',
+    showCancelButton: true,
+    confirmButtonText: 'Crear Carpeta',
+    cancelButtonText: 'Cancelar',
+    inputValidator: (value) => {
+      if (!value) return '¡Debe ingresar un nombre para la carpeta!';
+    }
+  });
+
+  if (nombreCarpeta) {
+    try {
+      const res = await apiCall('/api/biblioteca/carpetas', 'POST', {
+        nombre: nombreCarpeta,
+        padre: window._bibCarpetaActiva || 'RAIZ',
+        color: '#2563eb'
+      });
+
+      if (res && res.success) {
+        Swal.fire('¡Creada!', res.message || '✅ Carpeta creada con éxito', 'success');
+        cargarBiblioteca();
+      } else {
+        Swal.fire('Error', res.message || 'No se pudo crear la carpeta', 'error');
+      }
+    } catch(e) {
+      Swal.fire('Error', 'Fallo al conectar con el servidor', 'error');
+    }
+  }
 }
 
 // Al arrancar la página web
