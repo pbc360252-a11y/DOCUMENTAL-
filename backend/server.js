@@ -664,6 +664,100 @@ app.get('/api/busqueda', autenticarToken, async (req, res) => {
   }
 });
 
+// ==========================================
+// MAPA DE ESTANTERÍA Y ARCHIVO FÍSICO VOXELSERA
+// ==========================================
+app.get('/api/voxelsera-mapa', autenticarToken, async (req, res) => {
+  try {
+    const slots = {};
+    ['A','B','C','D'].forEach(l => {
+      for(let i=1; i<=9; i++) {
+        slots[`VOXEL_${l}${i}`] = { slotId: `VOXEL_${l}${i}`, code: `${l}${i}`, letter: l, index: i, count: 0, items: [] };
+      }
+    });
+
+    // 1. Minutas (Estante A)
+    const minRes = await db.query('SELECT id, tipo_minuta, nombre_puesto, codigo_unico, voxelsera FROM minutas');
+    minRes.rows.forEach(r => {
+      let v = r.voxelsera;
+      if (!v) {
+        const idx = (r.id % 9) + 1;
+        v = `VOXEL_A${idx}`;
+      } else if (!v.startsWith('VOXEL_')) {
+        const match = String(v).match(/([A-Da-d])[-_ ]?([1-9])/);
+        v = match ? `VOXEL_${match[1].toUpperCase()}${match[2]}` : `VOXEL_A1`;
+      }
+      if (slots[v]) {
+        slots[v].count++;
+        if (slots[v].items.length < 50) {
+          slots[v].items.push({ id: r.id, modulo: 'MINUTAS', codigo: r.codigo_unico, titulo: `${r.tipo_minuta} - ${r.nombre_puesto}` });
+        }
+      }
+    });
+
+    // 2. Personal Inactivo / Asociados Retirados (Estante B)
+    const pasRes = await db.query('SELECT id, nombre_completo, cedula, motivo_baja, voxelsera FROM personal_inactivo');
+    pasRes.rows.forEach(r => {
+      let v = r.voxelsera;
+      if (!v) {
+        const idx = (r.id % 9) + 1;
+        v = `VOXEL_B${idx}`;
+      } else if (!v.startsWith('VOXEL_')) {
+        const match = String(v).match(/([A-Da-d])[-_ ]?([1-9])/);
+        v = match ? `VOXEL_${match[1].toUpperCase()}${match[2]}` : `VOXEL_B1`;
+      }
+      if (slots[v]) {
+        slots[v].count++;
+        if (slots[v].items.length < 50) {
+          slots[v].items.push({ id: r.id, modulo: 'ASOCIADOS RETIRADOS', codigo: `CC: ${r.cedula}`, titulo: `${r.nombre_completo} (${r.motivo_baja || 'Retirado'})` });
+        }
+      }
+    });
+
+    // 3. Contratos (Estante C)
+    const conRes = await db.query('SELECT id, tipo_contrato, numero_contrato, parte_a, parte_b, voxelsera FROM contratos');
+    conRes.rows.forEach(r => {
+      let v = r.voxelsera;
+      if (!v) {
+        const idx = (r.id % 9) + 1;
+        v = `VOXEL_C${idx}`;
+      } else if (!v.startsWith('VOXEL_')) {
+        const match = String(v).match(/([A-Da-d])[-_ ]?([1-9])/);
+        v = match ? `VOXEL_${match[1].toUpperCase()}${match[2]}` : `VOXEL_C1`;
+      }
+      if (slots[v]) {
+        slots[v].count++;
+        if (slots[v].items.length < 50) {
+          slots[v].items.push({ id: r.id, modulo: 'CONTRATOS', codigo: r.numero_contrato, titulo: `${r.tipo_contrato} (${r.parte_a})` });
+        }
+      }
+    });
+
+    // 4. Correspondencia (Estante D)
+    const corrRes = await db.query('SELECT id, codigo_documento, asunto, depto_origen, voxelsera FROM correspondencia');
+    corrRes.rows.forEach(r => {
+      let v = r.voxelsera;
+      if (!v) {
+        const idx = (r.id % 9) + 1;
+        v = `VOXEL_D${idx}`;
+      } else if (!v.startsWith('VOXEL_')) {
+        const match = String(v).match(/([A-Da-d])[-_ ]?([1-9])/);
+        v = match ? `VOXEL_${match[1].toUpperCase()}${match[2]}` : `VOXEL_D1`;
+      }
+      if (slots[v]) {
+        slots[v].count++;
+        if (slots[v].items.length < 50) {
+          slots[v].items.push({ id: r.id, modulo: 'CORRESPONDENCIA', codigo: r.codigo_documento, titulo: `[${r.depto_origen}] ${r.asunto}` });
+        }
+      }
+    });
+
+    res.json({ success: true, slots });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 app.get('/api/registro-detalle/:modulo/:id', autenticarToken, async (req, res) => {
   const { modulo, id } = req.params;
   try {

@@ -742,71 +742,75 @@ async function cargarMapaArchivo() {
   const grid = document.getElementById('mapaArchivo');
   if(!grid) return;
   
-  grid.innerHTML = '<div style="text-align:center;grid-column:1/-1;padding:20px;color:var(--text-muted)"><i class="fas fa-spinner fa-spin"></i> Cargando Slots desde PostgreSQL...</div>';
+  grid.innerHTML = '<div style="text-align:center;grid-column:1/-1;padding:30px;color:var(--text-muted)"><i class="fas fa-spinner fa-spin fa-2x"></i><br><br>Consultando estanterías e inventario en PostgreSQL...</div>';
   
   try {
+    const res = await apiCall('/api/voxelsera-mapa');
+    if (!res.success || !res.slots) {
+      grid.innerHTML = '<div class="alert alert-danger" style="grid-column:1/-1">No se pudo cargar el mapa de archivo físico.</div>';
+      return;
+    }
+
+    const slots = res.slots;
+    window._voxelseraSlotsData = slots;
+
     let html = '';
     const letras = ['A', 'B', 'C', 'D'];
     
-    // Consultar todos los documentos para ver qué ubicaciones están ocupadas
-    const res = await apiCall('/api/busqueda?query=');
-    const conteoSlots = {};
-    if (res.success && res.resultados) {
-      res.resultados.forEach(r => {
-        const vox = r.detalles && (r.detalles.VOXELSERA || r.detalles.voxelsera);
-        if (vox) {
-          const norm = vox.startsWith('VOXEL_') ? vox : `VOXEL_${vox}`;
-          conteoSlots[norm] = (conteoSlots[norm] || 0) + 1;
-        }
-      });
-    }
-
     const infoEstantes = {
-      'A': { titulo: 'ESTANTE A — MINUTAS (A1 - A9)', icon: 'fas fa-file-signature', color: 'var(--accent-cyan)' },
-      'B': { titulo: 'ESTANTE B — ASOCIADOS RETIRADOS (B1 - B9)', icon: 'fas fa-user-minus', color: 'var(--accent-gold)' },
-      'C': { titulo: 'ESTANTE C — CONTRATOS (C1 - C9)', icon: 'fas fa-file-contract', color: 'var(--accent-violet)' },
-      'D': { titulo: 'ESTANTE D — ESTANTERÍA LIBRE / SALIDA DEL DÍA (D1 - D9)', icon: 'fas fa-box-open', color: 'var(--accent-green)' }
+      'A': { titulo: 'ESTANTE A — MINUTAS DE SERVICIO (A1 - A9)', icon: 'fas fa-file-signature', color: 'var(--accent-cyan)', tag: '📋 MINUTAS' },
+      'B': { titulo: 'ESTANTE B — ASOCIADOS RETIRADOS (B1 - B9)', icon: 'fas fa-user-minus', color: 'var(--accent-gold)', tag: '🤝 HOJAS DE VIDA' },
+      'C': { titulo: 'ESTANTE C — CONTRATOS Y CONVENIOS (C1 - C9)', icon: 'fas fa-file-contract', color: 'var(--accent-violet)', tag: '📑 CONTRATOS' },
+      'D': { titulo: 'ESTANTE D — SALIDA DEL DÍA / LIBRE (D1 - D9)', icon: 'fas fa-box-open', color: 'var(--accent-green)', tag: '⚡ CORRESPONDENCIA' }
     };
 
     for (let l of letras) {
       const info = infoEstantes[l];
       html += `
-        <div style="grid-column: 1 / -1; margin-top: ${l === 'A' ? '0' : '14px'}; margin-bottom: 4px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1.5px solid ${info.color}; padding-bottom: 6px;">
-          <span style="font-size: 0.88rem; font-weight: 800; color: ${info.color}; display: flex; align-items: center; gap: 8px;">
+        <div style="grid-column: 1 / -1; margin-top: ${l === 'A' ? '0' : '16px'}; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid ${info.color}; padding-bottom: 6px;">
+          <span style="font-size: 0.92rem; font-weight: 800; color: ${info.color}; display: flex; align-items: center; gap: 8px;">
             <i class="${info.icon}"></i> ${info.titulo}
           </span>
-          <span class="badge badge-subtle" style="font-size: 0.68rem; font-weight: 700;">ZONA EXCLUSIVA ${l}1-${l}9</span>
+          <span class="badge" style="background:rgba(255,255,255,0.06);color:${info.color};border:1px solid ${info.color};font-weight:800;font-size:0.7rem">${info.tag}</span>
         </div>
       `;
 
       for (let i = 1; i <= 9; i++) {
-        const slotId = `VOXEL_${l}${i}`;
-        const count = conteoSlots[slotId] || 0;
+        const slotKey = `VOXEL_${l}${i}`;
+        const sData = slots[slotKey] || { count: 0 };
+        const count = sData.count || 0;
         const isOcc = count > 0;
-        const countBadge = count > 0 ? `<span style="font-size:0.65rem;margin-top:2px;background:var(--accent-green);color:#fff;padding:1px 6px;border-radius:10px;font-weight:800">${count} doc${count > 1 ? 's' : ''}</span>` : '';
+
+        const countLabel = count > 0 
+          ? `<span style="font-size:0.7rem;font-weight:800;background:var(--accent-green);color:#fff;padding:2px 8px;border-radius:12px;box-shadow:0 0 8px rgba(16,185,129,0.4)"><i class="fas fa-box"></i> ${count.toLocaleString('es-CO')} doc${count > 1 ? 's' : ''}</span>`
+          : `<span style="font-size:0.65rem;color:var(--text-muted);font-weight:700">DISPONIBLE</span>`;
 
         html += `
-          <div class="slot ${isOcc ? 'occ' : ''}" id="slot_${slotId}" onclick="verDetallesSlot('${slotId}', ${isOcc})" title="Slot ${slotId} (${count} documentos)">
-            <span style="display:flex;align-items:center;gap:4px">
-              ${isOcc ? '<i class="fas fa-box" style="font-size:0.75rem"></i>' : ''} ${l}${i}
-            </span>
-            ${countBadge}
+          <div class="slot ${isOcc ? 'occ' : ''}" id="slot_${slotKey}" onclick="verDetallesSlot('${slotKey}', ${isOcc})" title="Compartimento ${l}${i} - ${count} documentos archivados" style="position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px 6px;min-height:75px;border-radius:var(--r-md);cursor:pointer;transition:all 0.25s ease;">
+            <div style="font-size:1.1rem;font-weight:900;letter-spacing:0.5px;color:${isOcc ? info.color : 'var(--text-secondary)'};display:flex;align-items:center;gap:4px">
+              <i class="fas fa-archive" style="font-size:0.85rem;opacity:0.8"></i> ${l}${i}
+            </div>
+            <div style="margin-top:5px;text-align:center">
+              ${countLabel}
+            </div>
           </div>
         `;
       }
     }
     grid.innerHTML = html;
   } catch(e) {
-    grid.innerHTML = '<div class="alert alert-danger" style="grid-column:1/-1">Error al cargar mapa físico</div>';
+    grid.innerHTML = '<div class="alert alert-danger" style="grid-column:1/-1">Error al consultar estanterías físicas</div>';
   }
 }
 
 async function verDetallesSlot(slotId, isOcc) {
   const normId = slotId.replace('VOXEL_', '');
+  const sData = window._voxelseraSlotsData ? window._voxelseraSlotsData[slotId] : null;
+  const totalDocs = sData ? sData.count : 0;
   
-  if(!isOcc) {
+  if(!isOcc && totalDocs === 0) {
     Swal.fire({
-      title: `📦 Estantería / Compartimento ${normId}`,
+      title: `📦 Compartimento Físico ${normId}`,
       text: 'Este slot físico se encuentra 100% disponible para archivar nuevos expedientes o minutas.',
       icon: 'info',
       confirmButtonText: 'Entendido'
@@ -815,45 +819,48 @@ async function verDetallesSlot(slotId, isOcc) {
   }
   
   try {
-    const res = await apiCall(`/api/busqueda?query=${encodeURIComponent(slotId)}`);
-    if (res.success && res.resultados && res.resultados.length > 0) {
-      // Filtrar resultados exactos para este slot
-      const docs = res.resultados.filter(r => {
-        const vox = r.detalles && (r.detalles.VOXELSERA || r.detalles.voxelsera);
-        return vox && (vox === slotId || vox === normId);
-      });
+    let items = sData && sData.items ? sData.items : [];
 
-      const items = docs.length > 0 ? docs : res.resultados;
-
-      let html = `<div style="text-align:left;max-height:380px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding-right:4px">`;
-      items.forEach(d => {
-        html += `
-          <div style="background:var(--bg-elevated);border:1px solid var(--border-medium);border-radius:8px;padding:12px;display:flex;justify-content:space-between;align-items:center">
-            <div>
-              <span class="badge badge-info" style="font-size:0.65rem;margin-bottom:4px">${d.modulo}</span>
-              <div style="font-weight:800;color:var(--accent-primary);font-size:1rem">${d.codigo}</div>
-              <div style="font-size:0.82rem;color:var(--text-secondary);margin-top:2px">${d.titulo}</div>
-            </div>
-            <button class="btn btn-sm btn-ghost" style="color:var(--accent-primary)" onclick="Swal.close(); mostrarDetalleRegistro('${d.id}', '${d.modulo}')" title="Ver ficha completa">
-              <i class="fas fa-eye" style="font-size:1.1rem"></i>
-            </button>
-          </div>
-        `;
-      });
-      html += `</div>`;
-
-      Swal.fire({
-        title: `📦 Compartimento Físico ${normId} (${items.length} Archivo${items.length > 1 ? 's' : ''})`,
-        html: html,
-        width: '560px',
-        showCloseButton: true,
-        showConfirmButton: false
-      });
-    } else {
-      Swal.fire(`Compartimento ${normId}`, 'No se encontraron registros detallados para este slot.', 'warning');
+    if (items.length === 0) {
+      const res = await apiCall(`/api/busqueda?query=${encodeURIComponent(normId)}`);
+      if (res.success && res.resultados) {
+        items = res.resultados;
+      }
     }
+
+    let html = `<div style="text-align:left;max-height:420px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding-right:4px">`;
+    items.forEach(d => {
+      html += `
+        <div style="background:var(--bg-elevated);border:1px solid var(--border-medium);border-radius:8px;padding:12px;display:flex;justify-content:space-between;align-items:center;gap:12px">
+          <div style="flex:1">
+            <span class="badge badge-info" style="font-size:0.65rem;margin-bottom:4px;font-weight:800">${d.modulo}</span>
+            <div style="font-weight:900;color:var(--accent-primary);font-size:1.05rem">${d.codigo}</div>
+            <div style="font-size:0.84rem;color:var(--text-secondary);margin-top:2px;font-weight:600">${d.titulo}</div>
+          </div>
+          <button class="btn btn-sm btn-ghost" style="color:var(--accent-primary);background:rgba(37,99,235,0.1);padding:6px 10px;border-radius:6px" onclick="Swal.close(); mostrarDetalleRegistro('${d.id}', '${d.modulo}')" title="Ver ficha completa">
+            <i class="fas fa-eye" style="font-size:1.1rem"></i>
+          </button>
+        </div>
+      `;
+    });
+    html += `</div>`;
+
+    const subTitleText = totalDocs > items.length 
+      ? `Mostrando ${items.length} de ${totalDocs.toLocaleString('es-CO')} documentos archivados en este compartimento`
+      : `${items.length} documento${items.length !== 1 ? 's' : ''} archivado${items.length !== 1 ? 's' : ''}`;
+
+    Swal.fire({
+      title: `📦 Estante Voxelsera ${normId}`,
+      html: `
+        <div style="font-size:0.82rem;color:var(--accent-cyan);font-weight:700;margin-bottom:12px;text-transform:uppercase">${subTitleText}</div>
+        ${html}
+      `,
+      width: '600px',
+      showCloseButton: true,
+      showConfirmButton: false
+    });
   } catch(e) {
-    Swal.fire('Error', 'No pudimos consultar el detalle del compartimento físico', 'error');
+    Swal.fire(`Compartimento ${normId}`, 'Error al obtener inventario del compartimento.', 'error');
   }
 }
 
