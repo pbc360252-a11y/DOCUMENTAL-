@@ -1236,13 +1236,13 @@ function renderPrestamos(lista) {
   `;
 
   lista.forEach(p => {
-    const estado = p.estado || 'ACTIVO';
-    const isActivo = estado === 'ACTIVO';
+    const estado = (p.estado || 'ACTIVO').toUpperCase();
+    const isDevuelto = estado === 'DEVUELTO';
     const isVencido = estado === 'VENCIDO';
     
-    let badgeClass = 'badge-success';
-    if (isActivo) badgeClass = 'badge-warning';
+    let badgeClass = 'badge-warning';
     if (isVencido) badgeClass = 'badge-danger';
+    if (isDevuelto) badgeClass = 'badge-success';
 
     const fPrest = p.fecha_prestamo ? String(p.fecha_prestamo).substring(0, 10) : '--';
     const fDev = p.fecha_devolucion ? String(p.fecha_devolucion).substring(0, 10) : '--';
@@ -1260,7 +1260,7 @@ function renderPrestamos(lista) {
         <td>${fDev}</td>
         <td><span class="badge ${badgeClass}">${estado}</span></td>
         <td>
-          ${isActivo ? `<button class="btn btn-sm btn-primary" onclick="devolverPrestamo('${p.id}')"><i class="fas fa-undo"></i> Registrar Devolución</button>` : `<span class="text-sm text-muted"><i class="fas fa-check-circle" style="color:var(--accent-green)"></i> Devuelto</span>`}
+          ${!isDevuelto ? `<button class="btn btn-sm btn-primary" onclick="devolverPrestamo('${p.id}')"><i class="fas fa-undo"></i> Registrar Devolución</button>` : `<span class="text-sm text-muted"><i class="fas fa-check-circle" style="color:var(--accent-green)"></i> Devuelto</span>`}
         </td>
       </tr>
     `;
