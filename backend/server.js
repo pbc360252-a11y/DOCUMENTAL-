@@ -406,6 +406,7 @@ app.post('/api/prestamos/devolver', autenticarToken, async (req, res) => {
 
 app.get('/api/prestamos', autenticarToken, async (req, res) => {
   try {
+    await db.query(`UPDATE prestamos SET estado = 'VENCIDO' WHERE estado = 'ACTIVO' AND fecha_devolucion < CURRENT_DATE`);
     const result = await db.query('SELECT * FROM prestamos ORDER BY fecha_prestamo DESC');
     res.json({ success: true, prestamos: result.rows });
   } catch(e) {
@@ -415,6 +416,7 @@ app.get('/api/prestamos', autenticarToken, async (req, res) => {
 
 app.get('/api/prestamos/estado', autenticarToken, async (req, res) => {
   try {
+    await db.query(`UPDATE prestamos SET estado = 'VENCIDO' WHERE estado = 'ACTIVO' AND fecha_devolucion < CURRENT_DATE`);
     const result = await db.query('SELECT * FROM prestamos ORDER BY fecha_prestamo DESC');
     res.json({ success: true, prestamos: result.rows });
   } catch(e) {

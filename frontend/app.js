@@ -1317,6 +1317,7 @@ async function devolverPrestamo(id) {
         Swal.fire('Devuelto', res.message, 'success');
         cargarPrestamos();
         cargarDashboard();
+        actualizarNotificacionesSistema();
       } else {
         Swal.fire('Error', res.message || 'No se pudo procesar la devolución', 'error');
       }
