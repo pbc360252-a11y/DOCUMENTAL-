@@ -723,34 +723,61 @@ async function verDetallesSlot(slotId, isOcc) {
   }
 }
 
+function toggleFiltrosAvanzados() {
+  const panel = document.getElementById('panelFiltrosAvanzados');
+  const btn = document.getElementById('btnToggleFiltros');
+  if (!panel) return;
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'grid';
+  if (btn) {
+    btn.className = isOpen ? 'btn btn-ghost btn-sm' : 'btn btn-primary btn-sm';
+  }
+}
+
 async function ejecutarBusqueda() {
   const query = document.getElementById('searchInput').value.trim();
+  const filtroModulo = document.getElementById('filtroTipo')?.value || 'todos';
   const listDiv = document.getElementById('resultadosBusqueda');
-  listDiv.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted)"><i class="fas fa-spinner fa-spin"></i> Buscando...</div>';
+  listDiv.innerHTML = '<div style="text-align:center;padding:35px;color:var(--text-muted)"><i class="fas fa-spinner fa-spin fa-2x"></i><div style="margin-top:10px;font-weight:600">Buscando en base de datos PostgreSQL...</div></div>';
 
   try {
     const res = await apiCall(`/api/busqueda?query=${encodeURIComponent(query)}`);
     if (res.success) {
-      document.getElementById('totalRes').textContent = `${res.total} resultados`;
-      if (res.resultados.length === 0) {
-        listDiv.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted)">No encontramos resultados.</div>';
+      let filtrados = res.resultados;
+      if (filtroModulo !== 'todos') {
+        filtrados = filtrados.filter(r => {
+          const m = r.modulo.toLowerCase();
+          return m.includes(filtroModulo);
+        });
+      }
+
+      document.getElementById('totalRes').textContent = `${filtrados.length} resultados`;
+      if (filtrados.length === 0) {
+        listDiv.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);background:var(--bg-elevated);border-radius:var(--r-md);border:1px dashed var(--border-medium)">No se encontraron documentos para la búsqueda.</div>';
         return;
       }
       
-      let html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px">';
-      res.resultados.forEach(r => {
+      let html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:16px">';
+      filtrados.forEach(r => {
+        const slotTag = r.detalles && r.detalles.VOXELSERA 
+          ? `<button class="btn btn-sm btn-ghost" style="padding:2px 8px;font-size:0.72rem;color:var(--accent-violet);border-color:var(--accent-violet)" onclick="event.stopPropagation(); iluminarUbicacionFisica('${r.detalles.VOXELSERA}')" title="Iluminar en el mapa de estanterías"><i class="fas fa-box"></i> ${r.detalles.VOXELSERA}</button>`
+          : '';
+
         html += `
-          <div class="kpi-card" style="cursor:pointer;position:relative" onclick="mostrarDetalleRegistro('${r.id}', '${r.modulo}')">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-              <span class="kpi-icon" style="font-size:1.2rem">📄</span>
+          <div class="card" style="cursor:pointer;position:relative;padding:16px;margin:0;border:1px solid var(--border-medium);transition:all 0.2s;" onclick="mostrarDetalleRegistro('${r.id}', '${r.modulo}')">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+              <span class="badge badge-info" style="font-size:0.68rem;font-weight:700;letter-spacing:0.5px">${r.modulo}</span>
               <button class="btn btn-sm btn-ghost" style="color:var(--accent-primary);padding:4px 8px;border-radius:var(--r-md);background:rgba(37,99,235,0.1)" onclick="event.stopPropagation(); mostrarDetalleRegistro('${r.id}', '${r.modulo}')" title="Ver detalles completos de este documento">
                 <i class="fas fa-eye" style="font-size:1.1rem"></i>
               </button>
             </div>
-            <div class="kpi-value" style="font-size:1.05rem;word-break:break-all">${r.codigo}</div>
-            <div class="kpi-label" style="font-size:0.65rem;color:var(--accent-primary);font-weight:700">${r.modulo}</div>
-            <div style="font-size:0.8rem;color:var(--text-secondary);margin-top:6px">${r.titulo}</div>
-            ${r.detalles && r.detalles.VOXELSERA ? `<div style="margin-top:8px;font-size:0.72rem"><span class="badge badge-violet"><i class="fas fa-box"></i> Archivo: ${r.detalles.VOXELSERA}</span></div>` : ''}
+            <div style="font-family:'Segoe UI',system-ui,sans-serif;font-size:1.15rem;font-weight:800;color:var(--accent-primary);letter-spacing:0.3px;word-break:break-all">
+              ${r.codigo}
+            </div>
+            <div style="font-size:0.84rem;font-weight:600;color:var(--text-secondary);margin-top:6px;line-height:1.35">
+              ${r.titulo}
+            </div>
+            ${slotTag ? `<div style="margin-top:12px;display:flex;justify-content:flex-end">${slotTag}</div>` : ''}
           </div>
         `;
       });
@@ -758,7 +785,7 @@ async function ejecutarBusqueda() {
       listDiv.innerHTML = html;
     }
   } catch(e) {
-    listDiv.innerHTML = '<div class="alert alert-danger">Error al consultar buscador universal</div>';
+    listDiv.innerHTML = '<div class="alert alert-danger">Error al consultar el buscador universal</div>';
   }
 }
 

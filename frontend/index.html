@@ -499,52 +499,71 @@
 
   <!-- BÚSQUEDA -->
   <div id="busqueda" class="section">
-    <div class="card">
-      <div class="card-header">
-        <span class="card-title"><i class="fas fa-search"></i>Buscador Universal</span>
-        <span class="badge badge-info" id="totalRes">0 resultados</span>
+    <div class="card" style="border: 1px solid var(--border-medium); background: var(--bg-card); box-shadow: 0 10px 30px rgba(0,0,0,0.15);">
+      <div class="card-header" style="border-bottom: 1px solid var(--border-subtle); padding-bottom: 14px; margin-bottom: 20px;">
+        <span class="card-title" style="font-size: 1.25rem; font-weight: 800; color: var(--accent-primary);"><i class="fas fa-search-plus"></i> Buscador Universal de Documentos</span>
+        <span class="badge badge-info" id="totalRes" style="font-size: 0.85rem; padding: 6px 14px;">0 resultados</span>
       </div>
-      <div class="flex-row" style="margin-bottom:20px">
-        <div style="flex:2;position:relative;min-width:240px">
-          <i class="fas fa-search" style="position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:.85rem"></i>
-          <input type="text" id="searchInput" class="inp" style="padding-left:40px" placeholder="Código, cédula, nombre, asunto..." onkeyup="busquedaInstantanea()">
+
+      <!-- Barra de Búsqueda Integrada de Élite -->
+      <div style="background: var(--bg-elevated); border: 1.5px solid var(--border-medium); border-radius: var(--r-lg); padding: 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; box-shadow: inset 0 2px 6px rgba(0,0,0,0.1); margin-bottom: 16px;">
+        <div style="flex: 1; position: relative; min-width: 250px; display: flex; align-items: center;">
+          <i class="fas fa-search" style="position: absolute; left: 16px; color: var(--accent-primary); font-size: 1rem;"></i>
+          <input type="text" id="searchInput" class="inp" style="border: none; background: transparent; padding-left: 46px; font-size: 1rem; font-weight: 600; box-shadow: none;" placeholder="Buscar por código, cédula, nombre, puesto, radicado o asunto..." onkeyup="busquedaInstantanea()">
         </div>
-        <select id="filtroTipo" class="inp" style="width:170px" onchange="ejecutarBusqueda()">
-          <option value="todos">📌 Todos</option>
-          <option value="correspondencia">📧 Correspondencia</option>
-          <option value="personal">👤 Personal</option>
-          <option value="contratos">📑 Contratos</option>
-          <option value="biblioteca">📚 Biblioteca</option>
-          <option value="minutas">📋 Minutas</option>
-          <option value="prestamos">🔄 Préstamos</option>
-        </select>
-        <button class="btn btn-primary" onclick="ejecutarBusqueda()"><i class="fas fa-search"></i>Buscar</button>
-      </div>
-      <!-- Filtros Avanzados -->
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:20px;padding:12px;background:var(--bg-base);border-radius:var(--r-md);border:1px solid var(--border-subtle)">
-        <div style="display:flex;flex-direction:column;gap:4px">
-          <label style="font-size:0.68rem;font-weight:700;">Fecha Desde</label>
-          <input type="date" id="searchFInicio" class="inp" style="padding:6px 10px;font-size:0.8rem;" onchange="ejecutarBusqueda()">
-        </div>
-        <div style="display:flex;flex-direction:column;gap:4px">
-          <label style="font-size:0.68rem;font-weight:700;">Fecha Hasta</label>
-          <input type="date" id="searchFFin" class="inp" style="padding:6px 10px;font-size:0.8rem;" onchange="ejecutarBusqueda()">
-        </div>
-        <div style="display:flex;flex-direction:column;gap:4px">
-          <label style="font-size:0.68rem;font-weight:700;">Departamento</label>
-          <input type="text" id="searchDepto" class="inp" style="padding:6px 10px;font-size:0.8rem;" placeholder="Ej: Contabilidad" onkeyup="busquedaInstantanea()">
-        </div>
-        <div style="display:flex;flex-direction:column;gap:4px">
-          <label style="font-size:0.68rem;font-weight:700;">Estado / Categoría</label>
-          <input type="text" id="searchEstado" class="inp" style="padding:6px 10px;font-size:0.8rem;" placeholder="Ej: ACTIVO" onkeyup="busquedaInstantanea()">
+
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <select id="filtroTipo" class="inp" style="width: auto; min-width: 170px; font-size: 0.88rem; font-weight: 600; cursor: pointer; background: var(--bg-card);" onchange="ejecutarBusqueda()">
+            <option value="todos">📌 Todos los Módulos</option>
+            <option value="correspondencia">📧 Correspondencia</option>
+            <option value="personal">🤝 Asociados Retirados</option>
+            <option value="minutas">📋 Minutas de Servicio</option>
+            <option value="contratos">📑 Contratos</option>
+            <option value="prestamos">🔄 Préstamos</option>
+            <option value="biblioteca">📚 Biblioteca</option>
+          </select>
+          
+          <button class="btn btn-ghost btn-sm" id="btnToggleFiltros" onclick="toggleFiltrosAvanzados()" style="padding: 10px 14px; font-size: 0.85rem;" title="Filtros avanzados por fecha y departamento">
+            <i class="fas fa-sliders-h"></i> Filtros
+          </button>
+
+          <button class="btn btn-primary" onclick="ejecutarBusqueda()" style="padding: 10px 22px; font-weight: 700;">
+            <i class="fas fa-search"></i> Buscar
+          </button>
         </div>
       </div>
+
+      <!-- Filtros Avanzados (Plegables) -->
+      <div id="panelFiltrosAvanzados" style="display: none; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; padding: 14px; background: var(--bg-base); border-radius: var(--r-md); border: 1px solid var(--border-subtle);">
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <label style="font-size: 0.72rem; font-weight: 700; color: var(--text-secondary);">FECHA DESDE</label>
+          <input type="date" id="searchFInicio" class="inp" style="padding: 6px 10px; font-size: 0.85rem;" onchange="ejecutarBusqueda()">
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <label style="font-size: 0.72rem; font-weight: 700; color: var(--text-secondary);">FECHA HASTA</label>
+          <input type="date" id="searchFFin" class="inp" style="padding: 6px 10px; font-size: 0.85rem;" onchange="ejecutarBusqueda()">
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <label style="font-size: 0.72rem; font-weight: 700; color: var(--text-secondary);">DEPARTAMENTO</label>
+          <input type="text" id="searchDepto" class="inp" style="padding: 6px 10px; font-size: 0.85rem;" placeholder="Ej: Contabilidad, Gerencia" onkeyup="busquedaInstantanea()">
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <label style="font-size: 0.72rem; font-weight: 700; color: var(--text-secondary);">ESTADO / CATEGORÍA</label>
+          <input type="text" id="searchEstado" class="inp" style="padding: 6px 10px; font-size: 0.85rem;" placeholder="Ej: ACTIVO, PENDIENTE" onkeyup="busquedaInstantanea()">
+        </div>
+      </div>
+
+      <!-- Resultados -->
       <div id="resultadosBusqueda"></div>
-      <div style="margin-top:28px">
-        <div class="card-title" style="margin-bottom:12px"><i class="fas fa-map-marked-alt"></i>Mapa de Archivo Físico</div>
-        <div style="display:flex;gap:14px;margin-bottom:10px;flex-wrap:wrap">
-          <span class="badge badge-active">● Ocupado</span>
-          <span class="badge" style="background:var(--bg-elevated);color:var(--text-muted);border:1px solid var(--border-medium)">○ Disponible</span>
+
+      <!-- Mapa de Archivo Físico -->
+      <div style="margin-top: 32px; border-top: 1px solid var(--border-subtle); padding-top: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
+          <div class="card-title" style="font-size: 1.1rem;"><i class="fas fa-map-marked-alt"></i> Mapa de Archivo Físico (Estanterías Voxelsera A1 - D9)</div>
+          <div style="display: flex; gap: 14px; align-items: center;">
+            <span class="badge badge-active">● Ocupado</span>
+            <span class="badge" style="background: var(--bg-elevated); color: var(--text-muted); border: 1px solid var(--border-medium);">○ Disponible</span>
+          </div>
         </div>
         <div class="mapa-grid" id="mapaArchivo"></div>
       </div>
