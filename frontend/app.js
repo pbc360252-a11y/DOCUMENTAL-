@@ -163,19 +163,24 @@ function popularSelectsConfig() {
   if(deptoPrestamo) deptoPrestamo.innerHTML = opciones;
   if(uDepto) uDepto.innerHTML = opciones;
 
-  // Llenar selectores de ubicaciones físicas (Voxelsera A1 - D9)
-  const voxels = [];
-  ['A', 'B', 'C', 'D'].forEach(l => {
-    for (let i = 1; i <= 9; i++) {
-      voxels.push({ id: `VOXEL_${l}${i}`, label: `📦 Estante ${l} - Nivel ${i} (VOXEL_${l}${i})` });
-    }
-  });
-  const voxelOptions = '<option value="">-- Seleccionar Compartimento Físico --</option>' + voxels.map(v => `<option value="${v.id}">${v.label}</option>`).join('');
-  
-  if (document.getElementById('voxelseraMinuta')) document.getElementById('voxelseraMinuta').innerHTML = voxelOptions;
-  if (document.getElementById('voxelseraPersonal')) document.getElementById('voxelseraPersonal').innerHTML = voxelOptions;
-  if (document.getElementById('voxelseraContrato')) document.getElementById('voxelseraContrato').innerHTML = voxelOptions;
-  if (document.getElementById('voxelseraCorr')) document.getElementById('voxelseraCorr').innerHTML = voxelOptions;
+  // Llenar selectores de ubicaciones físicas según la regla de negocio:
+  // A1-A9: Minutas | B1-B9: Asociados Retirados | C1-C9: Contratos | D1-D9: Correspondencia
+  const optionsMinuta = '<option value="">-- Seleccionar Compartimento Minuta (A1-A9) --</option>' + 
+    Array.from({length:9}, (_, i) => `<option value="VOXEL_A${i+1}">📋 Estante A - Compartimento A${i+1} (Minutas)</option>`).join('');
+
+  const optionsPersonal = '<option value="">-- Seleccionar Compartimento Asociados (B1-B9) --</option>' + 
+    Array.from({length:9}, (_, i) => `<option value="VOXEL_B${i+1}">🤝 Estante B - Compartimento B${i+1} (Asociados Retirados)</option>`).join('');
+
+  const optionsContrato = '<option value="">-- Seleccionar Compartimento Contratos (C1-C9) --</option>' + 
+    Array.from({length:9}, (_, i) => `<option value="VOXEL_C${i+1}">📑 Estante C - Compartimento C${i+1} (Contratos)</option>`).join('');
+
+  const optionsCorr = '<option value="">-- Seleccionar Compartimento Correspondencia (D1-D9) --</option>' + 
+    Array.from({length:9}, (_, i) => `<option value="VOXEL_D${i+1}">📧 Estante D - Compartimento D${i+1} (Correspondencia)</option>`).join('');
+
+  if (document.getElementById('voxelseraMinuta')) document.getElementById('voxelseraMinuta').innerHTML = optionsMinuta;
+  if (document.getElementById('voxelseraPersonal')) document.getElementById('voxelseraPersonal').innerHTML = optionsPersonal;
+  if (document.getElementById('voxelseraContrato')) document.getElementById('voxelseraContrato').innerHTML = optionsContrato;
+  if (document.getElementById('voxelseraCorr')) document.getElementById('voxelseraCorr').innerHTML = optionsCorr;
 
   // Selectores de biblioteca
   if (document.getElementById('catBib')) document.getElementById('catBib').innerHTML = '<option value="POLITICAS">Políticas</option><option value="MANUALES">Manuales</option><option value="REGISTROS">Registros</option>';
@@ -694,7 +699,24 @@ async function cargarMapaArchivo() {
       });
     }
 
+    const infoEstantes = {
+      'A': { titulo: 'ESTANTE A — MINUTAS (A1 - A9)', icon: 'fas fa-file-signature', color: 'var(--accent-cyan)' },
+      'B': { titulo: 'ESTANTE B — ASOCIADOS RETIRADOS (B1 - B9)', icon: 'fas fa-user-minus', color: 'var(--accent-gold)' },
+      'C': { titulo: 'ESTANTE C — CONTRATOS (C1 - C9)', icon: 'fas fa-file-contract', color: 'var(--accent-violet)' },
+      'D': { titulo: 'ESTANTE D — CORRESPONDENCIA Y OTROS (D1 - D9)', icon: 'fas fa-envelope', color: 'var(--accent-primary)' }
+    };
+
     for (let l of letras) {
+      const info = infoEstantes[l];
+      html += `
+        <div style="grid-column: 1 / -1; margin-top: ${l === 'A' ? '0' : '14px'}; margin-bottom: 4px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1.5px solid ${info.color}; padding-bottom: 6px;">
+          <span style="font-size: 0.88rem; font-weight: 800; color: ${info.color}; display: flex; align-items: center; gap: 8px;">
+            <i class="${info.icon}"></i> ${info.titulo}
+          </span>
+          <span class="badge badge-subtle" style="font-size: 0.68rem; font-weight: 700;">ZONA EXCLUSIVA ${l}1-${l}9</span>
+        </div>
+      `;
+
       for (let i = 1; i <= 9; i++) {
         const slotId = `VOXEL_${l}${i}`;
         const count = conteoSlots[slotId] || 0;
