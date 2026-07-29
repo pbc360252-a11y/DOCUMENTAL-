@@ -360,6 +360,15 @@ app.post('/api/contratos', autenticarToken, async (req, res) => {
   }
 });
 
+app.get('/api/contratos', autenticarToken, async (req, res) => {
+  try {
+    const result = await db.query('SELECT * FROM contratos ORDER BY created_at DESC');
+    res.json({ success: true, contratos: result.rows });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 // ==========================================
 // 6. PRÉSTAMOS
 // ==========================================
@@ -390,6 +399,15 @@ app.post('/api/prestamos/devolver', autenticarToken, async (req, res) => {
       [id]
     );
     res.json({ success: true, message: '✅ Devolución registrada con éxito' });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+app.get('/api/prestamos', autenticarToken, async (req, res) => {
+  try {
+    const result = await db.query('SELECT * FROM prestamos ORDER BY fecha_prestamo DESC');
+    res.json({ success: true, prestamos: result.rows });
   } catch(e) {
     res.status(500).json({ success: false, message: e.message });
   }

@@ -1008,7 +1008,8 @@ function showSection(secId) {
   const target = document.getElementById(secId);
   if (target) {
     target.classList.add('active');
-    document.getElementById('pageTitle').textContent = secId.toUpperCase();
+    const pTitle = document.getElementById('pageTitle');
+    if (pTitle) pTitle.textContent = secId.toUpperCase();
   }
 
   // Resaltar ícono en barra lateral
@@ -1018,6 +1019,13 @@ function showSection(secId) {
       b.classList.add('active');
     }
   });
+
+  // Disparar carga de datos del módulo seleccionado automáticamente
+  if (secId === 'dashboard') cargarDashboard();
+  if (secId === 'correspondencia') cargarCorrespondencia();
+  if (secId === 'personal') cargarPersonal();
+  if (secId === 'prestamos') cargarPrestamos();
+  if (secId === 'busqueda') ejecutarBusqueda();
 }
 
 function iniciarClocksYPolling() {
@@ -1036,8 +1044,145 @@ function cargarTodoElSistema() {
   try { cargarCorrespondencia(); } catch(e) { console.error('Error cargarCorrespondencia:', e); }
   try { cargarPersonal(); } catch(e) { console.error('Error cargarPersonal:', e); }
   try { cargarMapaArchivo(); } catch(e) { console.error('Error cargarMapaArchivo:', e); }
+  try { cargarPrestamos(); } catch(e) { console.error('Error cargarPrestamos:', e); }
   try { cargarWorkflows(); } catch(e) { console.error('Error cargarWorkflows:', e); }
   try { ejecutarBusqueda(); } catch(e) { console.error('Error ejecutarBusqueda:', e); }
+}
+// ==========================================
+// 7. MÓDULO DE PRÉSTAMOS DE DOCUMENTOS
+// ==========================================
+
+async function cargarPrestamos() {
+  const container = document.getElementById('listaPrestamos');
+  if (!container) return;
+  
+  container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted)"><i class="fas fa-spinner fa-spin"></i> Cargando préstamos desde PostgreSQL...</div>';
+  
+  try {
+    const res = await apiCall('/api/prestamos/estado');
+    if (res && res.success) {
+      window.cachePrestamos = res.prestamos || [];
+      renderPrestamos(window.cachePrestamos);
+    } else {
+      container.innerHTML = '<div class="alert alert-warning">No se pudieron obtener los préstamos</div>';
+    }
+  } catch (e) {
+    console.error('Error al cargar préstamos:', e);
+    container.innerHTML = '<div class="alert alert-danger">Error de conexión al cargar préstamos</div>';
+  }
+}
+
+function renderPrestamos(lista) {
+  const container = document.getElementById('listaPrestamos');
+  if (!container) return;
+
+  if (!lista || lista.length === 0) {
+    container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted)"><i class="fas fa-folder-open" style="font-size:2rem;margin-bottom:10px;display:block"></i>No hay préstamos de documentos registrados.</div>';
+    return;
+  }
+
+  let html = `
+    <div class="table-container">
+      <table class="table" id="tablaPrest">
+        <thead>
+          <tr>
+            <th>ID Préstamo</th>
+            <th>Solicitante</th>
+            <th>Departamento</th>
+            <th>Documento / Código</th>
+            <th>F. Préstamo</th>
+            <th>F. Devolución Estimada</th>
+            <th>Estado</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+  `;
+
+  lista.forEach(p => {
+    const estado = p.estado || 'ACTIVO';
+    const isActivo = estado === 'ACTIVO';
+    const isVencido = estado === 'VENCIDO';
+    
+    let badgeClass = 'badge-success';
+    if (isActivo) badgeClass = 'badge-warning';
+    if (isVencido) badgeClass = 'badge-danger';
+
+    const fPrest = p.fecha_prestamo ? String(p.fecha_prestamo).substring(0, 10) : '--';
+    const fDev = p.fecha_devolucion ? String(p.fecha_devolucion).substring(0, 10) : '--';
+
+    html += `
+      <tr>
+        <td><strong style="color:var(--accent-primary)">${p.id}</strong></td>
+        <td>${p.solicitante || 'N/A'}</td>
+        <td><span class="badge badge-subtle">${p.departamento || 'N/A'}</span></td>
+        <td>
+          <div style="font-weight:700">${p.documento || 'Sin título'}</div>
+          <small style="color:var(--text-muted)">${p.codigo_documento || '--'}</small>
+        </td>
+        <td>${fPrest}</td>
+        <td>${fDev}</td>
+        <td><span class="badge ${badgeClass}">${estado}</span></td>
+        <td>
+          ${isActivo ? `<button class="btn btn-sm btn-primary" onclick="devolverPrestamo('${p.id}')"><i class="fas fa-undo"></i> Registrar Devolución</button>` : `<span class="text-sm text-muted"><i class="fas fa-check-circle" style="color:var(--accent-green)"></i> Devuelto</span>`}
+        </td>
+      </tr>
+    `;
+  });
+
+  html += `
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  container.innerHTML = html;
+}
+
+function filtrarPrestamos() {
+  if (!window.cachePrestamos) return;
+  const fEstado = document.getElementById('filtroPrestEstado') ? document.getElementById('filtroPrestEstado').value : 'todos';
+  const fDepto = document.getElementById('filtroPrestDepto') ? document.getElementById('filtroPrestDepto').value : 'todos';
+
+  let filtrados = window.cachePrestamos.filter(p => {
+    let matchE = (fEstado === 'todos') || (p.estado === fEstado);
+    let matchD = (fDepto === 'todos') || (p.departamento === fDepto);
+    return matchE && matchD;
+  });
+
+  renderPrestamos(filtrados);
+}
+
+function limpiarFiltrosPrest() {
+  if (document.getElementById('filtroPrestEstado')) document.getElementById('filtroPrestEstado').value = 'todos';
+  if (document.getElementById('filtroPrestDepto')) document.getElementById('filtroPrestDepto').value = 'todos';
+  if (window.cachePrestamos) renderPrestamos(window.cachePrestamos);
+}
+
+async function devolverPrestamo(id) {
+  const confirm = await Swal.fire({
+    title: '¿Confirmar Devolución?',
+    text: `¿Marcar el préstamo ${id} como DEVUELTO?`,
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText: 'Sí, registrar devolución',
+    cancelButtonText: 'Cancelar'
+  });
+
+  if (confirm.isConfirmed) {
+    try {
+      const res = await apiCall('/api/prestamos/devolver', 'POST', { id });
+      if (res.success) {
+        Swal.fire('Devuelto', res.message, 'success');
+        cargarPrestamos();
+        cargarDashboard();
+      } else {
+        Swal.fire('Error', res.message || 'No se pudo procesar la devolución', 'error');
+      }
+    } catch(e) {
+      Swal.fire('Error', 'Fallo de conexión al servidor', 'error');
+    }
+  }
 }
 
 // Mock Dashboard
