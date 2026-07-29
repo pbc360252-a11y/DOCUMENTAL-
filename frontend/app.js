@@ -1160,6 +1160,7 @@ function showSection(secId) {
   if (secId === 'prestamos') cargarPrestamos();
   if (secId === 'busqueda') ejecutarBusqueda();
   if (secId === 'biblioteca') cargarBiblioteca();
+  if (secId === 'contratos') cargarContratos();
 }
 
 window.sistemaAlertas = [];
@@ -1274,6 +1275,7 @@ function cargarTodoElSistema() {
   try { cargarPrestamos(); } catch(e) { console.error('Error cargarPrestamos:', e); }
   try { cargarWorkflows(); } catch(e) { console.error('Error cargarWorkflows:', e); }
   try { cargarBiblioteca(); } catch(e) { console.error('Error cargarBiblioteca:', e); }
+  try { cargarContratos(); } catch(e) { console.error('Error cargarContratos:', e); }
   try { ejecutarBusqueda(); } catch(e) { console.error('Error ejecutarBusqueda:', e); }
   try { actualizarNotificacionesSistema(); } catch(e) { console.error('Error actualizarNotificaciones:', e); }
 }
@@ -1756,6 +1758,117 @@ async function mostrarModalCarpeta() {
       Swal.fire('Error', 'Fallo al conectar con el servidor', 'error');
     }
   }
+}
+
+// ==========================================
+// 9. MÓDULO DE CONTRATOS
+// ==========================================
+window.todosLosContratos = [];
+
+async function cargarContratos() {
+  const container = document.getElementById('listaContratos');
+  if (!container) return;
+
+  container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted)"><i class="fas fa-spinner fa-spin"></i> Cargando contratos desde PostgreSQL...</div>';
+
+  try {
+    const res = await apiCall('/api/contratos');
+    if (res && res.success) {
+      window.todosLosContratos = res.contratos || [];
+      renderContratos(window.todosLosContratos);
+    } else {
+      container.innerHTML = '<div class="alert alert-danger">Error al cargar listado de contratos</div>';
+    }
+  } catch(e) {
+    container.innerHTML = '<div class="alert alert-danger">Fallo al conectar con el servidor</div>';
+  }
+}
+
+function renderContratos(lista) {
+  const container = document.getElementById('listaContratos');
+  if (!container) return;
+
+  if (lista.length === 0) {
+    container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);background:var(--bg-elevated);border-radius:var(--r-md)">No se encontraron contratos registrados.</div>';
+    return;
+  }
+
+  let html = `
+    <div class="table-responsive">
+      <table class="table" id="tablaContratos">
+        <thead>
+          <tr>
+            <th>N° SECUENCIAL</th>
+            <th>NÚMERO / CÓDIGO</th>
+            <th>TIPO</th>
+            <th>PARTES (A / B)</th>
+            <th>FECHAS (INICIO - FIN)</th>
+            <th>VALOR ($)</th>
+            <th>ESTADO</th>
+            <th>ACCIONES</th>
+          </tr>
+        </thead>
+        <tbody>
+  `;
+
+  lista.forEach(c => {
+    const numSeq = c.codigo_numerico ? `#${c.codigo_numerico}` : '--';
+    const numDoc = c.numero_contrato || c.id;
+    const fIni = c.fecha_inicio ? String(c.fecha_inicio).substring(0, 10) : '--';
+    const fFin = c.fecha_fin ? String(c.fecha_fin).substring(0, 10) : 'Indefinido';
+    const val = c.valor_contrato ? `$ ${parseFloat(c.valor_contrato).toLocaleString('es-CO')}` : 'N/A';
+    const estado = (c.estado || 'VIGENTE').toUpperCase();
+
+    let badgeClass = 'badge-active';
+    if (estado === 'FINALIZADO' || estado === 'LIQUIDADO') badgeClass = 'badge-subtle';
+    if (estado === 'CANCELADO' || estado === 'VENCIDO') badgeClass = 'badge-overdue';
+
+    html += `
+      <tr>
+        <td><span class="badge badge-info" style="font-size:0.75rem;font-weight:800">${numSeq}</span></td>
+        <td><strong style="color:var(--accent-primary)">${numDoc}</strong></td>
+        <td><span class="badge badge-subtle">${c.tipo_contrato || 'General'}</span></td>
+        <td>
+          <div style="font-weight:700">${c.parte_a || 'CORAZA SEGURIDAD CTA'}</div>
+          <small style="color:var(--text-secondary);font-weight:600"><i class="fas fa-handshake"></i> ${c.parte_b || 'N/A'}</small>
+        </td>
+        <td>
+          <div style="font-size:0.82rem;font-weight:600">${fIni}</div>
+          <small style="color:var(--text-muted)">Fin: ${fFin}</small>
+        </td>
+        <td><strong style="color:var(--accent-green)">${val}</strong></td>
+        <td><span class="badge ${badgeClass}">${estado}</span></td>
+        <td>
+          <button class="btn btn-sm btn-ghost" style="color:var(--accent-primary);padding:4px 8px;border-radius:var(--r-md);background:rgba(37,99,235,0.1)" onclick="mostrarDetalleRegistro('${c.id}', 'CONTRATOS')" title="Ver detalles del contrato">
+            <i class="fas fa-eye" style="font-size:1.1rem"></i>
+          </button>
+        </td>
+      </tr>
+    `;
+  });
+
+  html += '</tbody></table></div>';
+  container.innerHTML = html;
+}
+
+function filtrarContratos() {
+  const query = (document.getElementById('filtroContratos')?.value || '').toLowerCase().trim();
+  if (!query) {
+    renderContratos(window.todosLosContratos);
+    return;
+  }
+
+  const filtrados = window.todosLosContratos.filter(c => {
+    const num = String(c.codigo_numerico || '').toLowerCase();
+    const doc = String(c.numero_contrato || c.id || '').toLowerCase();
+    const pA = String(c.parte_a || '').toLowerCase();
+    const pB = String(c.parte_b || '').toLowerCase();
+    const obj = String(c.objeto_contrato || '').toLowerCase();
+
+    return num.includes(query) || doc.includes(query) || pA.includes(query) || pB.includes(query) || obj.includes(query);
+  });
+
+  renderContratos(filtrados);
 }
 
 // Al arrancar la página web

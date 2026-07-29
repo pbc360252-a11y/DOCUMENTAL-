@@ -362,7 +362,7 @@ app.post('/api/contratos', autenticarToken, async (req, res) => {
 
 app.get('/api/contratos', autenticarToken, async (req, res) => {
   try {
-    const result = await db.query('SELECT * FROM contratos ORDER BY created_at DESC');
+    const result = await db.query('SELECT * FROM contratos ORDER BY codigo_numerico DESC NULLS LAST, id DESC');
     res.json({ success: true, contratos: result.rows });
   } catch(e) {
     res.status(500).json({ success: false, message: e.message });

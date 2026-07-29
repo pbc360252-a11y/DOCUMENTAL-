@@ -359,6 +359,19 @@
         </div>
       </form>
     </div>
+
+    <!-- LISTADO DE CONTRATOS -->
+    <div class="card" style="margin-top:20px">
+      <div class="card-header">
+        <span class="card-title"><i class="fas fa-list-alt"></i> Listado Oficial de Contratos (Último Registrado: #394)</span>
+        <div class="flex-row">
+          <input type="text" id="filtroContratos" class="inp" placeholder="Buscar por contratista, número o código..." onkeyup="filtrarContratos()" style="width:260px">
+          <button class="btn btn-sm btn-ghost" style="color:var(--accent-green);border-color:var(--accent-green);background:rgba(16,185,129,.05)" onclick="exportarTablaACSV('tablaContratos', 'Contratos_Coraza')"><i class="fas fa-file-excel"></i> Excel</button>
+          <button class="btn btn-sm btn-primary" onclick="cargarContratos()"><i class="fas fa-sync-alt"></i> Actualizar</button>
+        </div>
+      </div>
+      <div id="listaContratos"><div style="text-align:center;padding:30px;color:var(--text-muted)"><i class="fas fa-spinner fa-spin"></i> Cargando contratos desde PostgreSQL...</div></div>
+    </div>
   </div>
 
   <!-- BIBLIOTECA -->
