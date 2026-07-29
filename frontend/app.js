@@ -57,7 +57,8 @@ async function iniciarSesion(e) {
       
       document.getElementById('loginScreen').classList.add('hidden');
       document.getElementById('mainApp').classList.remove('hidden');
-      document.getElementById('chatFab').classList.remove('hidden');
+      const chatFab = document.getElementById('chatFab');
+      if (chatFab) chatFab.classList.remove('hidden');
       
       cargarInfoUsuario();
       iniciarClocksYPolling();
@@ -82,7 +83,8 @@ function verificarTokenActivo() {
     currentUser = JSON.parse(savedUser);
     document.getElementById('loginScreen').classList.add('hidden');
     document.getElementById('mainApp').classList.remove('hidden');
-    document.getElementById('chatFab').classList.remove('hidden');
+    const chatFab = document.getElementById('chatFab');
+    if (chatFab) chatFab.classList.remove('hidden');
     cargarInfoUsuario();
     iniciarClocksYPolling();
     cargarTodoElSistema();
@@ -94,7 +96,8 @@ function cerrarSesion() {
   localStorage.removeItem('user');
   currentUser = null;
   document.getElementById('mainApp').classList.add('hidden');
-  document.getElementById('chatFab').classList.add('hidden');
+  const chatFab = document.getElementById('chatFab');
+  if (chatFab) chatFab.classList.add('hidden');
   document.getElementById('loginScreen').classList.remove('hidden');
 }
 
