@@ -253,13 +253,14 @@ async function registrarMinuta(e) {
     nombrePuesto: document.getElementById('nombrePuesto').value.trim(),
     fechaInicio: document.getElementById('fechaInicioMinuta').value,
     fechaCierre: document.getElementById('fechaCierreMinuta').value,
+    voxelsera: document.getElementById('voxelseraMinuta') ? document.getElementById('voxelseraMinuta').value : '',
     observaciones: document.getElementById('observacionesMinuta').value.trim()
   };
 
   try {
     const res = await apiCall('/api/minutas', 'POST', data);
     if (res.success) {
-      mostrarModalConfirmacion('✅ MINUTA REGISTRADA', res.codigoUnico, 'Puesto y minuta enlazados correctamente.');
+      mostrarModalConfirmacion('✅ MINUTA REGISTRADA', res.codigoUnico, 'Puesto y minuta enlazados respetando el consecutivo oficial.');
       document.getElementById('nombrePuesto').value = '';
       document.getElementById('observacionesMinuta').value = '';
     }

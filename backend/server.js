@@ -233,23 +233,41 @@ app.get('/api/correspondencia', autenticarToken, async (req, res) => {
 // ==========================================
 
 app.post('/api/minutas', autenticarToken, async (req, res) => {
-  const { tipoMinuta, nombrePuesto, fechaInicio, fechaCierre, observaciones } = req.body;
+  const { tipoMinuta, nombrePuesto, fechaInicio, fechaCierre, observaciones, voxelsera } = req.body;
   try {
     const id = `MIN-${Date.now()}`;
-    const nextVal = await obtenerSiguienteNumeroSecuencial('minutas', 'codigo_unico', null, null);
-    const cn = String(nextVal).padStart(2, '0');
-    const cu = `MIN-${cn}-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+    const prefix = tipoMinuta === 'VISITANTES' ? 'VIS' : (tipoMinuta === 'CORRESPONDENCIA' ? 'COR' : 'SER');
+    
+    // Obtener el consecutivo máximo existente para este tipo de minuta
+    const maxRes = await db.query(
+      `SELECT MAX(codigo_numerico) as max_num FROM minutas WHERE tipo_minuta = $1`,
+      [tipoMinuta]
+    );
+    const nextVal = (parseInt(maxRes.rows[0]?.max_num, 10) || 0) + 1;
+    const cu = `MIN-${prefix}-${String(nextVal).padStart(4, '0')}`;
 
     await db.query(
       `INSERT INTO minutas (id, tipo_minuta, nombre_puesto, fecha_inicio, fecha_cierre, observaciones, estado, responsable, voxelsera, codigo_unico, codigo_numerico) 
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-      [id, tipoMinuta, nombrePuesto, fechaInicio || new Date(), fechaCierre || null, observaciones, 'ACTIVO', req.user.email, '', cu, nextVal]
+      [id, tipoMinuta, nombrePuesto, fechaInicio || new Date(), fechaCierre || null, observaciones, 'ACTIVO', req.user.email, voxelsera || '', cu, nextVal]
     );
 
     await registrarAuditoria(req.user.email, 'MINUTAS', 'REGISTRO', `Minuta: ${cu}`, 'EXITO');
-    res.json({ success: true, id, codigo: cn, codigoUnico: cu, message: '✅ Minuta registrada con éxito' });
+    res.json({ success: true, id, codigo: cu, codigoUnico: cu, message: '✅ Minuta registrada con éxito' });
   } catch(e) {
     await registrarAuditoria(req.user.email, 'MINUTAS', 'REGISTRO_ERROR', e.message, 'ERROR');
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+app.get('/api/minutas', autenticarToken, async (req, res) => {
+  try {
+    const result = await db.query(
+      `SELECT id, tipo_minuta, nombre_puesto, fecha_inicio, fecha_cierre, observaciones, estado, responsable, voxelsera, codigo_unico, codigo_numerico, fecha_registro 
+       FROM minutas ORDER BY fecha_inicio DESC, codigo_numerico DESC LIMIT 200`
+    );
+    res.json({ success: true, datos: result.rows });
+  } catch(e) {
     res.status(500).json({ success: false, message: e.message });
   }
 });
