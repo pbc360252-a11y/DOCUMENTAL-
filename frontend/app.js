@@ -103,9 +103,14 @@ function cerrarSesion() {
 
 function cargarInfoUsuario() {
   if (!currentUser) return;
-  document.getElementById('userName').textContent = currentUser.nombre;
-  document.getElementById('userRole').textContent = currentUser.rol;
-  document.getElementById('userAv').textContent = currentUser.nombre.substring(0,1).toUpperCase();
+  const name = currentUser.nombre || currentUser.name || currentUser.email || 'Usuario';
+  const role = currentUser.rol || currentUser.role || 'ASOCIADO';
+  const elName = document.getElementById('userName');
+  const elRole = document.getElementById('userRole');
+  const elAv = document.getElementById('userAv');
+  if (elName) elName.textContent = name;
+  if (elRole) elRole.textContent = role;
+  if (elAv) elAv.textContent = name.substring(0, 1).toUpperCase();
 }
 
 // ==========================================
@@ -891,43 +896,50 @@ function busquedaInstantanea() {
 
 async function cargarWorkflows() {
   const listDiv = document.getElementById('listaWF');
-  listDiv.innerHTML = '<div class="text-muted text-sm"><i class="fas fa-spinner fa-spin"></i> Cargando...</div>';
+  if (listDiv) {
+    listDiv.innerHTML = '<div class="text-muted text-sm"><i class="fas fa-spinner fa-spin"></i> Cargando...</div>';
+  }
   try {
     const res = await apiCall('/api/workflows/pendientes');
-    if (res.success) {
-      document.getElementById('wfBadge').textContent = res.workflows.length;
-      document.getElementById('wfBadge').classList.toggle('hidden', res.workflows.length === 0);
-      
-      if (res.workflows.length === 0) {
-        listDiv.innerHTML = '<div class="text-muted text-sm">No tienes flujos pendientes.</div>';
-        return;
+    if (res && res.success && res.workflows) {
+      const badge = document.getElementById('wfBadge');
+      if (badge) {
+        badge.textContent = res.workflows.length;
+        badge.classList.toggle('hidden', res.workflows.length === 0);
       }
+      
+      if (listDiv) {
+        if (res.workflows.length === 0) {
+          listDiv.innerHTML = '<div class="text-muted text-sm">No tienes flujos pendientes.</div>';
+          return;
+        }
 
-      let html = '';
-      res.workflows.forEach(w => {
-        html += `
-          <div class="wf-item normal">
-            <div class="wf-icon" style="background:rgba(37,99,235,.1);color:var(--accent-primary)"><i class="fas fa-project-diagram"></i></div>
-            <div class="wf-meta">
-              <div class="wf-type">${w.tipo}</div>
-              <div class="wf-title">${w.comentarios}</div>
-              <div class="wf-row">
-                <span>Solicita: ${w.solicitante}</span>
-                <span>•</span>
-                <span>Documento: ${w.documento_id}</span>
+        let html = '';
+        res.workflows.forEach(w => {
+          html += `
+            <div class="wf-item normal">
+              <div class="wf-icon" style="background:rgba(37,99,235,.1);color:var(--accent-primary)"><i class="fas fa-project-diagram"></i></div>
+              <div class="wf-meta">
+                <div class="wf-type">${w.tipo}</div>
+                <div class="wf-title">${w.comentarios}</div>
+                <div class="wf-row">
+                  <span>Solicita: ${w.solicitante}</span>
+                  <span>•</span>
+                  <span>Documento: ${w.documento_id}</span>
+                </div>
+              </div>
+              <div class="flex-row">
+                <button class="btn btn-success btn-sm" onclick="resolverWF('${w.id}', 'APROBAR')"><i class="fas fa-check"></i>Aprobar</button>
+                <button class="btn btn-danger btn-sm" onclick="resolverWF('${w.id}', 'RECHAZAR')"><i class="fas fa-times"></i>Rechazar</button>
               </div>
             </div>
-            <div class="flex-row">
-              <button class="btn btn-success btn-sm" onclick="resolverWF('${w.id}', 'APROBAR')"><i class="fas fa-check"></i>Aprobar</button>
-              <button class="btn btn-danger btn-sm" onclick="resolverWF('${w.id}', 'RECHAZAR')"><i class="fas fa-times"></i>Rechazar</button>
-            </div>
-          </div>
-        `;
-      });
-      listDiv.innerHTML = html;
+          `;
+        });
+        listDiv.innerHTML = html;
+      }
     }
   } catch(e) {
-    listDiv.innerHTML = '<div class="alert alert-danger">Error de carga de workflows</div>';
+    if (listDiv) listDiv.innerHTML = '<div class="alert alert-danger">Error de carga de workflows</div>';
   }
 }
 
@@ -1019,13 +1031,13 @@ function iniciarClocksYPolling() {
 }
 
 function cargarTodoElSistema() {
-  popularSelectsConfig();
-  cargarDashboard();
-  cargarCorrespondencia();
-  cargarPersonal();
-  cargarMapaArchivo();
-  cargarWorkflows();
-  ejecutarBusqueda();
+  try { popularSelectsConfig(); } catch(e) { console.error('Error popularSelectsConfig:', e); }
+  try { cargarDashboard(); } catch(e) { console.error('Error cargarDashboard:', e); }
+  try { cargarCorrespondencia(); } catch(e) { console.error('Error cargarCorrespondencia:', e); }
+  try { cargarPersonal(); } catch(e) { console.error('Error cargarPersonal:', e); }
+  try { cargarMapaArchivo(); } catch(e) { console.error('Error cargarMapaArchivo:', e); }
+  try { cargarWorkflows(); } catch(e) { console.error('Error cargarWorkflows:', e); }
+  try { ejecutarBusqueda(); } catch(e) { console.error('Error ejecutarBusqueda:', e); }
 }
 
 // Mock Dashboard
