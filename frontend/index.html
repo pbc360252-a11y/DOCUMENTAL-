@@ -254,10 +254,24 @@
       <div class="card-header"><span class="card-title"><i class="fas fa-user-minus"></i>Registrar Personal Inactivo</span></div>
       <form onsubmit="registrarPersonal(event)">
         <div class="form-grid">
+          <div class="form-group"><label>Tipo de Persona *</label>
+            <select id="tipoPersona" class="inp" required>
+              <option value="EMPLEADO">👷 EMPLEADO</option>
+              <option value="ASOCIADO">🤝 ASOCIADO</option>
+            </select>
+          </div>
           <div class="form-group"><label>Nombre completo *</label><input type="text" id="nombrePersonal" class="inp" required></div>
           <div class="form-group"><label>Cédula *</label><input type="text" id="cedula" class="inp" required></div>
           <div class="form-group"><label>Fecha Baja *</label><input type="date" id="fechaBaja" class="inp" required></div>
-          <div class="form-group"><label>Motivo</label><input type="text" id="motivoBaja" class="inp" placeholder="Renuncia, jubilación..."></div>
+          <div class="form-group"><label>Motivo</label>
+            <select id="motivoBaja" class="inp">
+              <option value="VOLUNTARIA">Voluntaria</option>
+              <option value="EXCLUSION">Exclusión</option>
+              <option value="FALLECIDO">Fallecido</option>
+              <option value="TERMINACION DE CONVENIO">Terminación de Convenio</option>
+              <option value="RETIRO VOLUNTARIO">Retiro Voluntario</option>
+            </select>
+          </div>
           <div class="form-group"><label>Ubicación física *</label><select id="voxelseraPersonal" class="inp" required></select></div>
           <div class="form-group span-full"><label>Observaciones</label><textarea id="observacionesPersonal" class="inp" rows="3"></textarea></div>
         </div>
@@ -266,6 +280,27 @@
           <button type="button" class="btn btn-ghost" onclick="resetForm('personal')"><i class="fas fa-eraser"></i>LIMPIAR</button>
         </div>
       </form>
+    </div>
+    <!-- LISTA PERSONAL -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="fas fa-list"></i>Listado de Personal Inactivo</span>
+        <div class="flex-row">
+          <button class="btn btn-sm btn-primary" id="btnFiltroTodos" onclick="filtrarPersonalTipo('TODOS')"><i class="fas fa-users"></i>Todos</button>
+          <button class="btn btn-sm btn-ghost" id="btnFiltroEmpleado" onclick="filtrarPersonalTipo('EMPLEADO')">👷 Empleados</button>
+          <button class="btn btn-sm btn-ghost" id="btnFiltroAsociado" onclick="filtrarPersonalTipo('ASOCIADO')">🤝 Asociados</button>
+          <input type="text" id="searchPersonal" class="inp" style="width:180px" placeholder="Buscar nombre o cédula..." onkeyup="buscarPersonal()">
+          <button class="btn btn-sm btn-ghost" style="color:var(--accent-green);border-color:var(--accent-green)" onclick="exportarTablaACSV('tablaPersonal','Personal_Inactivo_Coraza')"><i class="fas fa-file-excel"></i>Excel</button>
+          <button class="btn btn-sm btn-primary" onclick="cargarPersonal()"><i class="fas fa-sync-alt"></i>Actualizar</button>
+        </div>
+      </div>
+      <div id="statsPersonal" style="display:flex;gap:14px;margin-bottom:14px;flex-wrap:wrap"></div>
+      <div id="listaPersonal"><div style="text-align:center;padding:30px;color:var(--text-muted)"><i class="fas fa-spinner fa-spin"></i></div></div>
+      <div class="pagination">
+        <button class="btn btn-sm btn-ghost" id="persPrev" onclick="cambiarPaginaPers(-1)" disabled><i class="fas fa-chevron-left"></i></button>
+        <span class="page-info" id="persPagInfo">Pág. 1</span>
+        <button class="btn btn-sm btn-ghost" id="persNext" onclick="cambiarPaginaPers(1)"><i class="fas fa-chevron-right"></i></button>
+      </div>
     </div>
   </div>
 

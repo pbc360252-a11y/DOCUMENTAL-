@@ -259,22 +259,50 @@ app.post('/api/minutas', autenticarToken, async (req, res) => {
 // ==========================================
 
 app.post('/api/personal-inactivo', autenticarToken, async (req, res) => {
-  const { nombre, cedula, fechaBaja, motivo, observaciones } = req.body;
+  const { nombre, cedula, fechaBaja, motivo, observaciones, tipoPersona } = req.body;
   try {
     const id = `PER-${Date.now()}`;
     const nextVal = await obtenerSiguienteNumeroSecuencial('personal_inactivo', 'id', null, null);
     const cn = String(nextVal).padStart(2, '0');
+    const tipo = tipoPersona || 'EMPLEADO';
 
     await db.query(
-      `INSERT INTO personal_inactivo (id, nombre_completo, cedula, fecha_baja, motivo_baja, observaciones, voxelsera, codigo_numerico) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [id, nombre, cedula, fechaBaja || new Date(), motivo, observaciones, '', nextVal]
+      `INSERT INTO personal_inactivo (id, nombre_completo, cedula, fecha_baja, motivo_baja, observaciones, voxelsera, codigo_numerico, tipo_persona) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [id, nombre, cedula, fechaBaja || new Date(), motivo, observaciones, '', nextVal, tipo]
     );
 
-    await registrarAuditoria(req.user.email, 'PERSONAL_INACTIVO', 'REGISTRO', `Cédula: ${cedula}`, 'EXITO');
+    await registrarAuditoria(req.user.email, 'PERSONAL_INACTIVO', 'REGISTRO', `Cédula: ${cedula} (${tipo})`, 'EXITO');
     res.json({ success: true, id, codigo: cn, message: '✅ Personal inactivo registrado con éxito' });
   } catch(e) {
     await registrarAuditoria(req.user.email, 'PERSONAL_INACTIVO', 'REGISTRO_ERROR', e.message, 'ERROR');
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+app.get('/api/personal-inactivo', autenticarToken, async (req, res) => {
+  try {
+    const result = await db.query(
+      `SELECT id, nombre_completo, cedula, fecha_baja, motivo_baja, observaciones, voxelsera, codigo_numerico, tipo_persona, fecha_registro 
+       FROM personal_inactivo ORDER BY fecha_baja DESC, nombre_completo ASC`
+    );
+    res.json({ success: true, datos: result.rows });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+app.put('/api/personal-inactivo/:id/tipo', autenticarToken, async (req, res) => {
+  const { id } = req.params;
+  const { tipoPersona } = req.body;
+  try {
+    await db.query(
+      `UPDATE personal_inactivo SET tipo_persona = $1 WHERE id = $2`,
+      [tipoPersona, id]
+    );
+    await registrarAuditoria(req.user.email, 'PERSONAL_INACTIVO', 'ACTUALIZAR_TIPO', `ID: ${id} a ${tipoPersona}`, 'EXITO');
+    res.json({ success: true, message: '✅ Tipo de personal actualizado' });
+  } catch(e) {
     res.status(500).json({ success: false, message: e.message });
   }
 });

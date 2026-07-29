@@ -271,6 +271,7 @@ async function registrarMinuta(e) {
 async function registrarPersonal(e) {
   e.preventDefault();
   const data = {
+    tipoPersona: document.getElementById('tipoPersona') ? document.getElementById('tipoPersona').value : 'EMPLEADO',
     nombre: document.getElementById('nombrePersonal').value.trim(),
     cedula: document.getElementById('cedula').value.trim(),
     fechaBaja: document.getElementById('fechaBaja').value,
@@ -284,11 +285,184 @@ async function registrarPersonal(e) {
       mostrarModalConfirmacion('✅ PERSONAL INACTIVO REGISTRADO', `ID: ${res.codigo}`, 'Expediente digital guardado en el archivo central.');
       document.getElementById('nombrePersonal').value = '';
       document.getElementById('cedula').value = '';
-      document.getElementById('motivoBaja').value = '';
       document.getElementById('observacionesPersonal').value = '';
+      cargarPersonal();
     }
   } catch(e) {
     Swal.fire('Error', 'No se pudo registrar al personal.', 'error');
+  }
+}
+
+// ==========================================
+// LISTADO Y FILTRADO DE PERSONAL INACTIVO / ASOCIADOS
+// ==========================================
+
+let listPersonal = [];
+let persPage = 1;
+const persLimit = 25;
+let persFiltroTipo = 'TODOS';
+let persQuery = '';
+
+async function cargarPersonal() {
+  const listDiv = document.getElementById('listaPersonal');
+  if (!listDiv) return;
+  listDiv.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted)"><i class="fas fa-spinner fa-spin"></i> Cargando personal desde PostgreSQL...</div>';
+  try {
+    const res = await apiCall('/api/personal-inactivo');
+    if (res.success) {
+      listPersonal = res.datos;
+      renderPersonalStats();
+      renderPersonal();
+    }
+  } catch(e) {
+    listDiv.innerHTML = '<div class="alert alert-danger">❌ Error de conexión al servidor backend</div>';
+  }
+}
+
+function renderPersonalStats() {
+  const statsDiv = document.getElementById('statsPersonal');
+  if (!statsDiv) return;
+  const total = listPersonal.length;
+  const empleados = listPersonal.filter(p => (p.tipo_persona || 'EMPLEADO') === 'EMPLEADO').length;
+  const asociados = listPersonal.filter(p => p.tipo_persona === 'ASOCIADO').length;
+
+  statsDiv.innerHTML = `
+    <div style="background:var(--bg-elevated);padding:8px 14px;border-radius:var(--r-md);border:1px solid var(--border-medium);font-size:0.82rem">
+      <span style="color:var(--text-muted)">Total Registros:</span> <strong style="color:var(--accent-primary)">${total}</strong>
+    </div>
+    <div style="background:var(--bg-elevated);padding:8px 14px;border-radius:var(--r-md);border:1px solid var(--border-medium);font-size:0.82rem">
+      <span style="color:var(--text-muted)">👷 Empleados:</span> <strong style="color:var(--accent-cyan)">${empleados}</strong>
+    </div>
+    <div style="background:var(--bg-elevated);padding:8px 14px;border-radius:var(--r-md);border:1px solid var(--border-medium);font-size:0.82rem">
+      <span style="color:var(--text-muted)">🤝 Asociados:</span> <strong style="color:var(--accent-gold)">${asociados}</strong>
+    </div>
+  `;
+}
+
+function filtrarPersonalTipo(tipo) {
+  persFiltroTipo = tipo;
+  persPage = 1;
+
+  ['btnFiltroTodos', 'btnFiltroEmpleado', 'btnFiltroAsociado'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) {
+      btn.className = 'btn btn-sm btn-ghost';
+    }
+  });
+
+  if (tipo === 'TODOS') document.getElementById('btnFiltroTodos').className = 'btn btn-sm btn-primary';
+  if (tipo === 'EMPLEADO') document.getElementById('btnFiltroEmpleado').className = 'btn btn-sm btn-primary';
+  if (tipo === 'ASOCIADO') document.getElementById('btnFiltroAsociado').className = 'btn btn-sm btn-primary';
+
+  renderPersonal();
+}
+
+function buscarPersonal() {
+  persQuery = (document.getElementById('searchPersonal')?.value || '').trim().toLowerCase();
+  persPage = 1;
+  renderPersonal();
+}
+
+function renderPersonal() {
+  const listDiv = document.getElementById('listaPersonal');
+  if (!listDiv) return;
+
+  let filtrados = listPersonal.filter(p => {
+    const tipo = p.tipo_persona || 'EMPLEADO';
+    if (persFiltroTipo !== 'TODOS' && tipo !== persFiltroTipo) return false;
+    if (persQuery) {
+      const matchNom = String(p.nombre_completo || '').toLowerCase().includes(persQuery);
+      const matchCed = String(p.cedula || '').toLowerCase().includes(persQuery);
+      const matchMot = String(p.motivo_baja || '').toLowerCase().includes(persQuery);
+      if (!matchNom && !matchCed && !matchMot) return false;
+    }
+    return true;
+  });
+
+  const total = filtrados.length;
+  const paginas = Math.ceil(total / persLimit) || 1;
+  if (persPage > paginas) persPage = paginas;
+
+  const pagInfo = document.getElementById('persPagInfo');
+  if (pagInfo) pagInfo.textContent = `Pág. ${persPage} de ${paginas} (${total} total)`;
+  
+  const prevBtn = document.getElementById('persPrev');
+  if (prevBtn) prevBtn.disabled = persPage === 1;
+  const nextBtn = document.getElementById('persNext');
+  if (nextBtn) nextBtn.disabled = persPage === paginas;
+
+  const start = (persPage - 1) * persLimit;
+  const pageData = filtrados.slice(start, start + persLimit);
+
+  if (pageData.length === 0) {
+    listDiv.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted)">No hay registros de personal que coincidan con el filtro.</div>';
+    return;
+  }
+
+  let html = `
+    <div class="table-wrap">
+      <table id="tablaPersonal">
+        <thead>
+          <tr>
+            <th>Tipo</th>
+            <th>Nombre Completo</th>
+            <th>Cédula</th>
+            <th>Fecha Baja</th>
+            <th>Motivo</th>
+            <th>Ubicación</th>
+            <th>Cambiar Clasificación</th>
+          </tr>
+        </thead>
+        <tbody>
+  `;
+
+  pageData.forEach(p => {
+    const tipo = p.tipo_persona || 'EMPLEADO';
+    const badge = tipo === 'ASOCIADO' 
+      ? '<span class="badge" style="background:rgba(234,179,8,0.15);color:var(--accent-gold);border:1px solid var(--accent-gold)">🤝 ASOCIADO</span>'
+      : '<span class="badge badge-info">👷 EMPLEADO</span>';
+
+    const fechaBaja = p.fecha_baja ? String(p.fecha_baja).substring(0, 10) : '--';
+
+    html += `
+      <tr>
+        <td>${badge}</td>
+        <td style="font-weight:600">${p.nombre_completo}</td>
+        <td style="color:var(--accent-primary);font-weight:700">${p.cedula}</td>
+        <td>${fechaBaja}</td>
+        <td>${p.motivo_baja || '--'}</td>
+        <td>${p.voxelsera ? `<span class="badge badge-violet">${p.voxelsera}</span>` : '--'}</td>
+        <td>
+          <select class="inp" style="padding:3px 8px;font-size:0.75rem;width:auto" onchange="cambiarTipoPersonaFila('${p.id}', this.value)">
+            <option value="EMPLEADO" ${tipo === 'EMPLEADO' ? 'selected' : ''}>👷 EMPLEADO</option>
+            <option value="ASOCIADO" ${tipo === 'ASOCIADO' ? 'selected' : ''}>🤝 ASOCIADO</option>
+          </select>
+        </td>
+      </tr>
+    `;
+  });
+
+  html += '</tbody></table></div>';
+  listDiv.innerHTML = html;
+}
+
+function cambiarPaginaPers(dir) {
+  persPage += dir;
+  renderPersonal();
+}
+
+async function cambiarTipoPersonaFila(id, nuevoTipo) {
+  try {
+    const res = await apiCall(`/api/personal-inactivo/${id}/tipo`, 'PUT', { tipoPersona: nuevoTipo });
+    if (res.success) {
+      const item = listPersonal.find(p => p.id === id);
+      if (item) item.tipo_persona = nuevoTipo;
+      renderPersonalStats();
+      renderPersonal();
+      Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `Clasificado como ${nuevoTipo}`, showConfirmButton: false, timer: 1500 });
+    }
+  } catch(e) {
+    Swal.fire('Error', 'No se pudo actualizar la clasificación', 'error');
   }
 }
 
@@ -717,6 +891,7 @@ function cargarTodoElSistema() {
   popularSelectsConfig();
   cargarDashboard();
   cargarCorrespondencia();
+  cargarPersonal();
   cargarMapaArchivo();
   cargarWorkflows();
   ejecutarBusqueda();
