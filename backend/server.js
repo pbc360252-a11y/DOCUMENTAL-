@@ -515,13 +515,12 @@ app.get('/api/analytics', autenticarToken, async (req, res) => {
   }
 });
 
-// Servir archivos estáticos del frontend (opcional)
+// Servir archivos estáticos del frontend
 app.use(express.static(path.join(__dirname, '../frontend')));
 
-if (process.env.NODE_ENV !== 'production') {
-  app.listen(PORT, () => {
-    console.log(`🚀 Servidor SGD Coraza corriendo en puerto ${PORT}`);
-  });
-}
+// Siempre escuchar en PORT (Render asigna process.env.PORT automáticamente)
+app.listen(PORT, () => {
+  console.log(`🚀 Servidor SGD Coraza corriendo en puerto ${PORT}`);
+});
 
 module.exports = app;
