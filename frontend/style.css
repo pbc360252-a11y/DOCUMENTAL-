@@ -671,22 +671,28 @@ tbody tr:last-child td {
   letter-spacing: .4px;
 }
 
-.badge-pending {
-  background: rgba(245,158,11,.12);
+.badge-pending,
+.badge-warning {
+  background: rgba(245,158,11,.15);
   color: var(--accent-amber);
-  border: 1px solid rgba(245,158,11,.2);
+  border: 1px solid rgba(245,158,11,.3);
+  font-weight: 800;
 }
 
-.badge-active {
-  background: rgba(16,185,129,.12);
+.badge-active,
+.badge-success {
+  background: rgba(16,185,129,.15);
   color: var(--accent-green);
-  border: 1px solid rgba(16,185,129,.2);
+  border: 1px solid rgba(16,185,129,.3);
+  font-weight: 800;
 }
 
-.badge-overdue {
-  background: rgba(239,68,68,.12);
+.badge-overdue,
+.badge-danger {
+  background: rgba(239,68,68,.15);
   color: var(--accent-red);
-  border: 1px solid rgba(239,68,68,.2);
+  border: 1px solid rgba(239,68,68,.3);
+  font-weight: 800;
 }
 
 .badge-done {

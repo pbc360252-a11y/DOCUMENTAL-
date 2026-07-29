@@ -1241,14 +1241,21 @@ function renderPrestamos(lista) {
     const isVencido = estado === 'VENCIDO';
     
     let badgeClass = 'badge-warning';
-    if (isVencido) badgeClass = 'badge-danger';
-    if (isDevuelto) badgeClass = 'badge-success';
+    let iconTag = '<i class="fas fa-clock"></i>';
+    if (isVencido) {
+      badgeClass = 'badge-danger';
+      iconTag = '<i class="fas fa-exclamation-triangle"></i>';
+    }
+    if (isDevuelto) {
+      badgeClass = 'badge-success';
+      iconTag = '<i class="fas fa-check-circle"></i>';
+    }
 
     const fPrest = p.fecha_prestamo ? String(p.fecha_prestamo).substring(0, 10) : '--';
     const fDev = p.fecha_devolucion ? String(p.fecha_devolucion).substring(0, 10) : '--';
 
     html += `
-      <tr>
+      <tr style="${isVencido ? 'background: rgba(239, 68, 68, 0.04);' : ''}">
         <td><strong style="color:var(--accent-primary)">${p.id}</strong></td>
         <td>${p.solicitante || 'N/A'}</td>
         <td><span class="badge badge-subtle">${p.departamento || 'N/A'}</span></td>
@@ -1258,7 +1265,7 @@ function renderPrestamos(lista) {
         </td>
         <td>${fPrest}</td>
         <td>${fDev}</td>
-        <td><span class="badge ${badgeClass}">${estado}</span></td>
+        <td><span class="badge ${badgeClass}">${iconTag} ${estado}</span></td>
         <td>
           <div style="display:flex;gap:6px;align-items:center">
             <button class="btn btn-sm btn-ghost" style="color:var(--accent-primary);padding:4px 8px;border-radius:var(--r-md);background:rgba(37,99,235,0.1)" onclick="mostrarDetalleRegistro('${p.id}', 'PRESTAMOS')" title="Ver detalles completos del préstamo">
