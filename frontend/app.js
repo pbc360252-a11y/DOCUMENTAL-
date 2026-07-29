@@ -1513,6 +1513,11 @@ async function cargarDashboard() {
           <div class="kpi-value">${res.prestamosActivos.toLocaleString('es-CO')}</div>
           <div class="kpi-label">Préstamos Activos</div>
         </div>
+        <div class="kpi-card" style="--kpi-color:var(--accent-green);cursor:pointer" onclick="showSection('prestamos')" title="Ver préstamos devueltos">
+          <span class="kpi-icon">✅</span>
+          <div class="kpi-value">${(res.prestamosDevueltos || 0).toLocaleString('es-CO')}</div>
+          <div class="kpi-label">Préstamos Devueltos</div>
+        </div>
       `;
 
       // 2. Renderizar Desglose de Minutas por Categoría
@@ -1582,10 +1587,10 @@ async function cargarDashboard() {
               <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px">Último Consecutivo: #${res.maxContrato || 394}</div>
             </div>
 
-            <div style="background:var(--bg-elevated);padding:12px;border-radius:var(--r-md);border:1px solid var(--border-subtle);cursor:pointer" onclick="showSection('busqueda')">
-              <div style="font-size:0.75rem;font-weight:700;color:var(--accent-green);text-transform:uppercase">Archivo Físico Voxelsera</div>
-              <div style="font-size:1.3rem;font-weight:800;color:var(--text-primary);margin-top:2px">462</div>
-              <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px">Compartimentos mapeados</div>
+            <div style="background:var(--bg-elevated);padding:12px;border-radius:var(--r-md);border:1px solid var(--border-subtle);cursor:pointer" onclick="showSection('prestamos')">
+              <div style="font-size:0.75rem;font-weight:700;color:var(--accent-green);text-transform:uppercase">Préstamos Devueltos</div>
+              <div style="font-size:1.3rem;font-weight:800;color:var(--text-primary);margin-top:2px">${(res.prestamosDevueltos || 0).toLocaleString('es-CO')}</div>
+              <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px">Documentos reintegrados</div>
             </div>
           </div>
         `;

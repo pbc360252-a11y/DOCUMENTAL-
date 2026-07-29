@@ -863,7 +863,8 @@ app.get('/api/analytics', autenticarToken, async (req, res) => {
     const resMin = await db.query('SELECT COUNT(*) FROM minutas');
     const resCtr = await db.query('SELECT COUNT(*) FROM contratos');
     const maxCtr = await db.query('SELECT MAX(codigo_numerico) as max_num FROM contratos');
-    const resPrest = await db.query("SELECT COUNT(*) FROM prestamos WHERE estado = 'ACTIVO'");
+    const resPrestAct = await db.query("SELECT COUNT(*) FROM prestamos WHERE estado = 'ACTIVO' OR estado = 'VENCIDO'");
+    const resPrestDev = await db.query("SELECT COUNT(*) FROM prestamos WHERE estado = 'DEVUELTO'");
     const resAsoc = await db.query('SELECT COUNT(*) FROM personal_inactivo');
 
     // Desglose de Minutas por Tipo
@@ -881,7 +882,8 @@ app.get('/api/analytics', autenticarToken, async (req, res) => {
       minutas: parseInt(resMin.rows[0].count, 10),
       contratos: parseInt(resCtr.rows[0].count, 10),
       maxContrato: maxCtr.rows[0] && maxCtr.rows[0].max_num ? parseInt(maxCtr.rows[0].max_num, 10) : 394,
-      prestamosActivos: parseInt(resPrest.rows[0].count, 10),
+      prestamosActivos: parseInt(resPrestAct.rows[0].count, 10),
+      prestamosDevueltos: parseInt(resPrestDev.rows[0].count, 10),
       asociadosRetirados: parseInt(resAsoc.rows[0].count, 10),
       minutasBreakdown: minObj
     });
