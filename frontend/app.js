@@ -734,11 +734,17 @@ async function ejecutarBusqueda() {
       let html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px">';
       res.resultados.forEach(r => {
         html += `
-          <div class="kpi-card" style="cursor:pointer;" onclick="mostrarDetalleRegistro('${r.id}', '${r.modulo}')">
-            <span class="kpi-icon">📄</span>
-            <div class="kpi-value" style="font-size:1.1rem;word-break:break-all">${r.codigo}</div>
-            <div class="kpi-label" style="font-size:0.65rem">${r.modulo}</div>
+          <div class="kpi-card" style="cursor:pointer;position:relative" onclick="mostrarDetalleRegistro('${r.id}', '${r.modulo}')">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+              <span class="kpi-icon" style="font-size:1.2rem">📄</span>
+              <button class="btn btn-sm btn-ghost" style="color:var(--accent-primary);padding:4px 8px;border-radius:var(--r-md);background:rgba(37,99,235,0.1)" onclick="event.stopPropagation(); mostrarDetalleRegistro('${r.id}', '${r.modulo}')" title="Ver detalles completos de este documento">
+                <i class="fas fa-eye" style="font-size:1.1rem"></i>
+              </button>
+            </div>
+            <div class="kpi-value" style="font-size:1.05rem;word-break:break-all">${r.codigo}</div>
+            <div class="kpi-label" style="font-size:0.65rem;color:var(--accent-primary);font-weight:700">${r.modulo}</div>
             <div style="font-size:0.8rem;color:var(--text-secondary);margin-top:6px">${r.titulo}</div>
+            ${r.detalles && r.detalles.VOXELSERA ? `<div style="margin-top:8px;font-size:0.72rem"><span class="badge badge-violet"><i class="fas fa-box"></i> Archivo: ${r.detalles.VOXELSERA}</span></div>` : ''}
           </div>
         `;
       });
@@ -747,6 +753,51 @@ async function ejecutarBusqueda() {
     }
   } catch(e) {
     listDiv.innerHTML = '<div class="alert alert-danger">Error al consultar buscador universal</div>';
+  }
+}
+
+async function mostrarDetalleRegistro(id, modulo) {
+  const modal = document.getElementById('modalDetalleBusqueda');
+  const body = document.getElementById('detalleBusquedaBody');
+  if (!modal || !body) return;
+
+  body.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted)"><i class="fas fa-spinner fa-spin"></i> Cargando información detallada...</div>';
+  modal.classList.add('show');
+
+  try {
+    const res = await apiCall(`/api/registro-detalle/${encodeURIComponent(modulo)}/${encodeURIComponent(id)}`);
+    if (res.success && res.detalle) {
+      const d = res.detalle;
+      let rowsHtml = '';
+      
+      for (const [key, val] of Object.entries(d)) {
+        if (val !== null && val !== undefined && val !== '') {
+          const formattedKey = key.replace(/_/g, ' ').toUpperCase();
+          let displayVal = val;
+          if (typeof val === 'string' && val.includes('T00:00:00')) {
+            displayVal = val.substring(0, 10);
+          }
+          rowsHtml += `
+            <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border-subtle);gap:14px">
+              <span style="font-size:0.78rem;font-weight:700;color:var(--text-secondary);min-width:140px">${formattedKey}</span>
+              <span style="font-size:0.85rem;font-weight:600;color:var(--text-primary);text-align:right;word-break:break-word">${displayVal}</span>
+            </div>
+          `;
+        }
+      }
+
+      body.innerHTML = `
+        <div style="background:var(--bg-elevated);padding:14px;border-radius:var(--r-md);border:1px solid var(--border-medium);margin-bottom:14px">
+          <div style="font-size:0.75rem;font-weight:700;color:var(--accent-primary);text-transform:uppercase">${modulo}</div>
+          <div style="font-size:1.2rem;font-weight:800;color:var(--text-primary);margin-top:2px">${d.codigo_unico || d.codigo_documento || d.numero_contrato || d.cedula || d.id}</div>
+        </div>
+        ${rowsHtml}
+      `;
+    } else {
+      body.innerHTML = '<div class="alert alert-danger">No se pudo obtener el detalle del registro.</div>';
+    }
+  } catch(e) {
+    body.innerHTML = '<div class="alert alert-danger">Error de conexión al obtener los detalles del registro.</div>';
   }
 }
 
