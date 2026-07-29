@@ -1999,6 +1999,165 @@ function filtrarContratos() {
   renderContratos(filtrados);
 }
 
+// ==========================================
+// 10. EXPORTADOR DE EXCEL (.XLSX) PROFESIONAL
+// ==========================================
+async function exportarExcelModulo(modulo) {
+  try {
+    Swal.fire({
+      title: '📊 Generando Excel Oficial...',
+      text: 'Exportando base de datos completa a formato Excel (.xlsx)...',
+      allowOutsideClick: false,
+      didOpen: () => { Swal.showLoading(); }
+    });
+
+    let data = [];
+    let fileName = `SGD_Coraza_${modulo}_${new Date().toISOString().substring(0,10)}.xlsx`;
+    let sheetName = modulo.toUpperCase();
+
+    if (modulo === 'personal' || modulo === 'asociados' || modulo === 'tablaPersonal') {
+      const res = await apiCall('/api/personal-inactivo');
+      if (res && res.success) {
+        data = (res.personal || []).map(p => ({
+          'CÓDIGO NUMÉRICO': p.codigo_numerico || '--',
+          'NOMBRE COMPLETO': p.nombre_completo || 'N/A',
+          'CÉDULA DE CIUDADANÍA': p.cedula || 'N/A',
+          'TIPO PERSONA': p.tipo_persona || 'ASOCIADO',
+          'FECHA BAJA/RETIRO': p.fecha_baja ? String(p.fecha_baja).substring(0,10) : '--',
+          'MOTIVO RETIRO': p.motivo_baja || 'N/A',
+          'UBICACIÓN VOXELSERA': p.voxelsera || 'B1',
+          'ESTADO': p.estado || 'INACTIVO'
+        }));
+        fileName = `Coraza_Asociados_Retirados_${new Date().toISOString().substring(0,10)}.xlsx`;
+        sheetName = 'ASOCIADOS_RETIRADOS';
+      }
+    } else if (modulo === 'contratos' || modulo === 'tablaContratos') {
+      const res = await apiCall('/api/contratos');
+      if (res && res.success) {
+        data = (res.contratos || []).map(c => ({
+          'N° CONSECUTIVO': c.codigo_numerico ? `#${c.codigo_numerico}` : '--',
+          'CÓDIGO/NÚMERO': c.numero_contrato || c.id,
+          'TIPO CONTRATO': c.tipo_contrato || 'General',
+          'PARTE A (CONTRATANTE)': c.parte_a || 'CORAZA SEGURIDAD CTA',
+          'PARTE B (CONTRATISTA)': c.parte_b || 'N/A',
+          'FECHA INICIO': c.fecha_inicio ? String(c.fecha_inicio).substring(0,10) : '--',
+          'FECHA FIN': c.fecha_fin ? String(c.fecha_fin).substring(0,10) : 'Indefinido',
+          'VALOR ($ COP)': c.valor_contrato ? parseFloat(c.valor_contrato) : 0,
+          'UBICACIÓN VOXELSERA': c.voxelsera || 'C1',
+          'ESTADO': c.estado || 'VIGENTE',
+          'OBJETO DEL CONTRATO': c.objeto_contrato || 'N/A'
+        }));
+        fileName = `Coraza_Contratos_${new Date().toISOString().substring(0,10)}.xlsx`;
+        sheetName = 'CONTRATOS';
+      }
+    } else if (modulo === 'correspondencia' || modulo === 'tablaCorr') {
+      const res = await apiCall('/api/correspondencia');
+      if (res && res.success) {
+        data = (res.correspondencia || []).map(cr => ({
+          'RADICADO TRD': cr.codigo_documento || cr.id,
+          'FECHA DOCUMENTO': cr.fecha_documento ? String(cr.fecha_documento).substring(0,10) : '--',
+          'MEDIO RECEPCIÓN': cr.medio || 'FÍSICO',
+          'DEPTO ORIGEN': cr.depto_origen || 'GE',
+          'DEPTO DESTINO': cr.depto_destino || 'N/A',
+          'ASUNTO': cr.asunto || 'N/A',
+          'ESTADO': cr.estado || 'RECIBIDO',
+          'UBICACIÓN FÍSICA': cr.voxelsera || 'D1'
+        }));
+        fileName = `Coraza_Correspondencia_${new Date().toISOString().substring(0,10)}.xlsx`;
+        sheetName = 'CORRESPONDENCIA';
+      }
+    } else if (modulo === 'prestamos' || modulo === 'tablaPrest') {
+      const res = await apiCall('/api/prestamos/estado');
+      if (res && res.success) {
+        data = (res.prestamos || []).map(pr => ({
+          'ID PRÉSTAMO': pr.id,
+          'SOLICITANTE': pr.solicitante || 'N/A',
+          'DEPARTAMENTO': pr.departamento || 'N/A',
+          'DOCUMENTO PRESTADO': pr.documento || 'N/A',
+          'CÓDIGO REGISTRO': pr.codigo_documento || '--',
+          'FECHA PRÉSTAMO': pr.fecha_prestamo ? String(pr.fecha_prestamo).substring(0,10) : '--',
+          'FECHA DEVOLUCIÓN ESTIMADA': pr.fecha_devolucion ? String(pr.fecha_devolucion).substring(0,10) : '--',
+          'ESTADO': pr.estado || 'ACTIVO'
+        }));
+        fileName = `Coraza_Prestamos_${new Date().toISOString().substring(0,10)}.xlsx`;
+        sheetName = 'PRESTAMOS';
+      }
+    }
+
+    if (data.length === 0) {
+      exportarTablaDOMACSV(modulo);
+      return;
+    }
+
+    if (typeof XLSX !== 'undefined') {
+      const worksheet = XLSX.utils.json_to_sheet(data);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+      XLSX.writeFile(workbook, fileName);
+      Swal.fire('¡Excel Generado!', `Se exportaron exitosamente ${data.length} registros a ${fileName}`, 'success');
+    } else {
+      descargarCSVDirecto(data, fileName.replace('.xlsx', '.csv'));
+    }
+  } catch(e) {
+    Swal.fire('Error', 'No se pudo generar el archivo Excel: ' + e.message, 'error');
+  }
+}
+
+function exportarTablaACSV(tablaId, nombreArchivo) {
+  exportarExcelModulo(tablaId);
+}
+
+function exportarTablaDOMACSV(tablaId) {
+  const table = document.getElementById(tablaId);
+  if (!table) {
+    Swal.fire('Atención', 'No se encontraron datos para exportar.', 'info');
+    return;
+  }
+  if (typeof XLSX !== 'undefined') {
+    const wb = XLSX.utils.table_to_book(table, { sheet: "DATOS" });
+    XLSX.writeFile(wb, `Reporte_SGD_Coraza.xlsx`);
+    Swal.fire('¡Excel Exportado!', 'El reporte se ha descargado correctamente.', 'success');
+  } else {
+    let csv = [];
+    const rows = table.querySelectorAll('tr');
+    for (let i = 0; i < rows.length; i++) {
+      const row = [], cols = rows[i].querySelectorAll('td, th');
+      for (let j = 0; j < cols.length - 1; j++) {
+        let val = cols[j].innerText.replace(/"/g, '""').trim();
+        row.push(`"${val}"`);
+      }
+      if (row.length > 0) csv.push(row.join(';'));
+    }
+    const blob = new Blob(["\ufeff" + csv.join("\n")], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `Reporte_SGD_Coraza.csv`;
+    link.click();
+    Swal.fire('¡Reporte Exportado!', 'Descarga completada.', 'success');
+  }
+}
+
+function descargarCSVDirecto(data, filename) {
+  if (!data || data.length === 0) return;
+  const headers = Object.keys(data[0]);
+  let csvRows = [headers.map(h => `"${h}"`).join(';')];
+
+  data.forEach(row => {
+    const values = headers.map(h => {
+      const val = row[h] !== undefined && row[h] !== null ? String(row[h]).replace(/"/g, '""') : '';
+      return `"${val}"`;
+    });
+    csvRows.push(values.join(';'));
+  });
+
+  const blob = new Blob(["\ufeff" + csvRows.join("\n")], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  link.click();
+  Swal.fire('¡Archivo Generado!', `Se exportó el reporte a ${filename}`, 'success');
+}
+
 // Al arrancar la página web
 window.onload = function() {
   verificarTokenActivo();
