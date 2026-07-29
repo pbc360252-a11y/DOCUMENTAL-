@@ -609,26 +609,7 @@
 </div><!-- /.layout -->
 </div><!-- /#mainApp -->
 
-<!-- CHAT FAB -->
-<button class="chat-fab hidden" id="chatFab" onclick="toggleChat()">
-  <img src="https://i.postimg.cc/CLBXH9cb/12rr.png" alt="IA">
-</button>
-<div class="chat-panel hidden" id="chatPanel">
-  <div class="chat-top">
-    <div class="chat-avatar"><img src="https://i.postimg.cc/CLBXH9cb/12rr.png" alt="IA"></div>
-    <div><div class="chat-name">CORAZA IA</div><div class="chat-status"><span style="width:6px;height:6px;background:var(--accent-green);border-radius:50%;display:inline-block"></span>v7.4 Secure · En línea</div></div>
-    <div style="margin-left:auto;display:flex;gap:7px">
-      <button class="topbar-btn" onclick="nuevaConv()" title="Nueva conversación"><i class="fas fa-plus"></i></button>
-      <button class="topbar-btn" onclick="toggleChat()"><i class="fas fa-times"></i></button>
-    </div>
-  </div>
-  <div id="chatMsgs" class="chat-msgs"></div>
-  <div id="chatTyping" class="chat-typing hidden"><i class="fas fa-circle-notch fa-spin"></i>CORAZA IA procesando...</div>
-  <div class="chat-bottom">
-    <input type="text" id="chatInp" class="chat-inp" placeholder="Pregunta sobre documentos, contratos, personal..." onkeypress="if(event.key==='Enter'&&!this.disabled) enviarChat()">
-    <button class="chat-send" id="chatSend" onclick="enviarChat()"><i class="fas fa-paper-plane"></i></button>
-  </div>
-</div>
+
 
 <!-- MODAL CONFIRMACIÓN -->
 <div class="modal-ov" id="modalConfirm">
