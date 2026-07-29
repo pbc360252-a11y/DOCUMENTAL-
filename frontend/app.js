@@ -1260,7 +1260,12 @@ function renderPrestamos(lista) {
         <td>${fDev}</td>
         <td><span class="badge ${badgeClass}">${estado}</span></td>
         <td>
-          ${!isDevuelto ? `<button class="btn btn-sm btn-primary" onclick="devolverPrestamo('${p.id}')"><i class="fas fa-undo"></i> Registrar Devolución</button>` : `<span class="text-sm text-muted"><i class="fas fa-check-circle" style="color:var(--accent-green)"></i> Devuelto</span>`}
+          <div style="display:flex;gap:6px;align-items:center">
+            <button class="btn btn-sm btn-ghost" style="color:var(--accent-primary);padding:4px 8px;border-radius:var(--r-md);background:rgba(37,99,235,0.1)" onclick="mostrarDetalleRegistro('${p.id}', 'PRESTAMOS')" title="Ver detalles completos del préstamo">
+              <i class="fas fa-eye" style="font-size:1.1rem"></i>
+            </button>
+            ${!isDevuelto ? `<button class="btn btn-sm btn-primary" onclick="devolverPrestamo('${p.id}')"><i class="fas fa-undo"></i> Registrar Devolución</button>` : `<span class="text-sm text-muted"><i class="fas fa-check-circle" style="color:var(--accent-green)"></i> Devuelto</span>`}
+          </div>
         </td>
       </tr>
     `;
