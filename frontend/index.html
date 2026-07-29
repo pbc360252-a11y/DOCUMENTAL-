@@ -433,10 +433,11 @@
         <span class="card-title"><i class="fas fa-list"></i>Estado de préstamos</span>
         <div class="flex-row">
           <select id="filtroPrestEstado" class="inp" style="width:auto" onchange="filtrarPrestamos()">
-            <option value="todos">Todos</option><option value="ACTIVO">🟢 Activos</option>
+            <option value="todos">Todos los estados</option><option value="ACTIVO">🟢 Activos</option>
             <option value="VENCIDO">🔴 Vencidos</option><option value="DEVUELTO">✅ Devueltos</option>
           </select>
           <select id="filtroPrestDepto" class="inp" style="width:auto" onchange="filtrarPrestamos()"><option value="todos">Todos los dptos</option></select>
+          <input type="text" id="filtroPrestTexto" class="inp" style="width:200px" placeholder="Buscar solicitante o doc..." onkeyup="filtrarPrestamos()">
           <button class="btn btn-sm btn-ghost" onclick="limpiarFiltrosPrest()"><i class="fas fa-times"></i></button>
           <button class="btn btn-sm btn-ghost" style="color:var(--accent-green);border-color:var(--accent-green);background:rgba(16,185,129,.05)" onclick="exportarTablaACSV('tablaPrest', 'Prestamos_Coraza')"><i class="fas fa-file-excel"></i>Excel</button>
           <button class="btn btn-sm btn-primary" onclick="cargarPrestamos()"><i class="fas fa-sync-alt"></i>Actualizar</button>
@@ -540,8 +541,21 @@
     </div>
   </div>
 
-  <!-- BÚSQUEDA -->
+  <!-- BÚSQUEDA Y MAPA DE ARCHIVO -->
   <div id="busqueda" class="section">
+    <!-- Tablero de Mapa de Archivo Físico PRIMERO -->
+    <div class="card" style="margin-bottom:20px; border: 1px solid var(--border-medium); background: var(--bg-card); box-shadow: 0 10px 30px rgba(0,0,0,0.15);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+        <div class="card-title" style="font-size: 1.2rem; font-weight:800; color: var(--accent-primary);"><i class="fas fa-cubes"></i> Tablero del Mapa de Archivo Físico Voxelsera (Estanterías A1 - D9)</div>
+        <div style="display: flex; gap: 14px; align-items: center;">
+          <span class="badge badge-active">● Ocupado con Documentos</span>
+          <span class="badge" style="background: var(--bg-elevated); color: var(--text-muted); border: 1px solid var(--border-medium);">○ Compartimento Disponible</span>
+          <button class="btn btn-sm btn-ghost" onclick="cargarMapaArchivo()"><i class="fas fa-sync-alt"></i> Actualizar Mapa</button>
+        </div>
+      </div>
+      <div class="mapa-grid" id="mapaArchivo"></div>
+    </div>
+
     <div class="card" style="border: 1px solid var(--border-medium); background: var(--bg-card); box-shadow: 0 10px 30px rgba(0,0,0,0.15);">
       <div class="card-header" style="border-bottom: 1px solid var(--border-subtle); padding-bottom: 14px; margin-bottom: 20px;">
         <span class="card-title" style="font-size: 1.25rem; font-weight: 800; color: var(--accent-primary);"><i class="fas fa-search-plus"></i> Buscador Universal de Documentos</span>
@@ -598,18 +612,6 @@
 
       <!-- Resultados -->
       <div id="resultadosBusqueda"></div>
-
-      <!-- Mapa de Archivo Físico -->
-      <div style="margin-top: 32px; border-top: 1px solid var(--border-subtle); padding-top: 24px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
-          <div class="card-title" style="font-size: 1.1rem;"><i class="fas fa-map-marked-alt"></i> Mapa de Archivo Físico (Estanterías Voxelsera A1 - D9)</div>
-          <div style="display: flex; gap: 14px; align-items: center;">
-            <span class="badge badge-active">● Ocupado</span>
-            <span class="badge" style="background: var(--bg-elevated); color: var(--text-muted); border: 1px solid var(--border-medium);">○ Disponible</span>
-          </div>
-        </div>
-        <div class="mapa-grid" id="mapaArchivo"></div>
-      </div>
     </div>
   </div>
 

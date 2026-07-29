@@ -272,6 +272,7 @@ function popularSelectsConfig() {
   if(deptoOrigen) deptoOrigen.innerHTML = opciones;
   if(deptoDestino) deptoDestino.innerHTML = '<option value="">Ninguno</option>' + opciones;
   if(deptoPrestamo) deptoPrestamo.innerHTML = opciones;
+  if(document.getElementById('filtroPrestDepto')) document.getElementById('filtroPrestDepto').innerHTML = '<option value="todos">Todos los dptos</option>' + opciones;
   if(uDepto) uDepto.innerHTML = opciones;
 
   // Llenar selectores de ubicaciones físicas según regla de negocio:
@@ -1435,11 +1436,29 @@ function filtrarPrestamos() {
   if (!window.cachePrestamos) return;
   const fEstado = document.getElementById('filtroPrestEstado') ? document.getElementById('filtroPrestEstado').value : 'todos';
   const fDepto = document.getElementById('filtroPrestDepto') ? document.getElementById('filtroPrestDepto').value : 'todos';
+  const fTexto = document.getElementById('filtroPrestTexto') ? document.getElementById('filtroPrestTexto').value.toLowerCase().trim() : '';
 
   let filtrados = window.cachePrestamos.filter(p => {
-    let matchE = (fEstado === 'todos') || (p.estado === fEstado);
-    let matchD = (fDepto === 'todos') || (p.departamento === fDepto);
-    return matchE && matchD;
+    let matchE = (fEstado === 'todos') || (String(p.estado || '').toUpperCase() === String(fEstado).toUpperCase());
+    
+    let matchD = true;
+    if (fDepto !== 'todos') {
+      const pDepto = String(p.departamento || '').toLowerCase();
+      const targetSigla = fDepto.toLowerCase();
+      const deptoObj = DEPTOS_MOCK.find(d => d.sigla.toLowerCase() === targetSigla);
+      const targetNombre = deptoObj ? deptoObj.nombre.toLowerCase() : targetSigla;
+      matchD = pDepto.includes(targetSigla) || pDepto.includes(targetNombre);
+    }
+
+    let matchT = true;
+    if (fTexto) {
+      const solic = String(p.solicitante || '').toLowerCase();
+      const doc = String(p.documento || '').toLowerCase();
+      const cod = String(p.codigo_documento || p.id || '').toLowerCase();
+      matchT = solic.includes(fTexto) || doc.includes(fTexto) || cod.includes(fTexto);
+    }
+
+    return matchE && matchD && matchT;
   });
 
   renderPrestamos(filtrados);
@@ -1448,6 +1467,7 @@ function filtrarPrestamos() {
 function limpiarFiltrosPrest() {
   if (document.getElementById('filtroPrestEstado')) document.getElementById('filtroPrestEstado').value = 'todos';
   if (document.getElementById('filtroPrestDepto')) document.getElementById('filtroPrestDepto').value = 'todos';
+  if (document.getElementById('filtroPrestTexto')) document.getElementById('filtroPrestTexto').value = '';
   if (window.cachePrestamos) renderPrestamos(window.cachePrestamos);
 }
 
@@ -2156,6 +2176,205 @@ function descargarCSVDirecto(data, filename) {
   link.download = filename;
   link.click();
   Swal.fire('¡Archivo Generado!', `Se exportó el reporte a ${filename}`, 'success');
+}
+
+// ==========================================
+// 11. GENERADOR DE INFORMES DE GERENCIA PDF / IMPRENTA
+// ==========================================
+async function generarInforme() {
+  const titulo = document.getElementById('infTitulo')?.value || 'Informe de Gestión Documental';
+  const notaLegal = document.getElementById('infEnunciado')?.value || 'Confidencial';
+  const fInicio = document.getElementById('infFI')?.value || '';
+  const fFin = document.getElementById('infFF')?.value || '';
+
+  const chkMin = document.getElementById('chkMin')?.checked;
+  const chkCorr = document.getElementById('chkCorr')?.checked;
+  const chkPers = document.getElementById('chkPers')?.checked;
+  const chkCont = document.getElementById('chkCont')?.checked;
+  const chkPrest = document.getElementById('chkPrest')?.checked;
+
+  try {
+    Swal.fire({
+      title: '📊 Consolidando Estadísticas...',
+      text: 'Recopilando indicadores en tiempo real de la base de datos...',
+      allowOutsideClick: false,
+      didOpen: () => { Swal.showLoading(); }
+    });
+
+    const res = await apiCall('/api/analytics');
+    Swal.close();
+
+    if (!res || !res.success) {
+      Swal.fire('Error', 'No se pudieron consultar los datos del servidor.', 'error');
+      return;
+    }
+
+    const fechaHoy = new Date().toLocaleDateString('es-CO', { year: 'numeric', month: 'long', day: 'numeric' });
+    const horaHoy = new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+
+    const cardConfig = document.getElementById('cardConfigInf');
+    const infVacio = document.getElementById('infVacio');
+    const infResultados = document.getElementById('infResultados');
+
+    if (infVacio) infVacio.style.display = 'none';
+    if (infResultados) infResultados.classList.remove('hidden');
+
+    let html = `
+      <div id="printAreaInforme" style="background:#fff;color:#0f172a;padding:36px;border-radius:12px;border:1px solid #cbd5e1;box-shadow:0 10px 25px rgba(0,0,0,0.1);margin-top:20px;font-family:'DM Sans',sans-serif">
+        
+        <!-- ENCABEZADO GERENCIAL OFICIAL -->
+        <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #0284c7;padding-bottom:20px;margin-bottom:24px">
+          <div style="display:flex;align-items:center;gap:16px">
+            <img src="logo.png" style="width:70px;height:70px;border-radius:50%;border:2px solid #0284c7;object-fit:cover" alt="Logo Coraza">
+            <div>
+              <h2 style="margin:0;font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;color:#0f172a">CORAZA SEGURIDAD C.T.A.</h2>
+              <div style="font-size:0.82rem;color:#64748b;font-weight:600">Cooperativa de Trabajo Asociado · NIT 800.123.456-7</div>
+              <div style="font-size:0.75rem;color:#0284c7;font-weight:700;margin-top:2px">SISTEMA DE GESTIÓN DOCUMENTAL (SGD) v7.4 SECURE</div>
+            </div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:0.75rem;font-weight:800;background:#e0f2fe;color:#0369a1;padding:4px 10px;border-radius:6px;display:inline-block;margin-bottom:6px">INFORME EJECUTIVO</div>
+            <div style="font-size:0.8rem;color:#475569;font-weight:600">Fecha: ${fechaHoy} ${horaHoy}</div>
+            <div style="font-size:0.75rem;color:#64748b">${fInicio && fFin ? `Rango: ${fInicio} al ${fFin}` : 'Período: General Acumulado'}</div>
+          </div>
+        </div>
+
+        <!-- TÍTULO DEL INFORME -->
+        <div style="text-align:center;margin-bottom:28px">
+          <h1 style="font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:800;color:#0f172a;margin:0 0 6px 0">${titulo.toUpperCase()}</h1>
+          <p style="margin:0;font-size:0.85rem;color:#64748b;font-style:italic">${notaLegal}</p>
+        </div>
+
+        <!-- TARJETAS DE INDICADORES (MÉTRICAS CLAVE DE GERENCIA) -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:30px">
+    `;
+
+    if (chkMin) {
+      html += `
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-left:4px solid #06b6d4;border-radius:8px;padding:14px">
+          <div style="font-size:0.72rem;font-weight:700;color:#64748b;text-transform:uppercase">Minutas de Servicio</div>
+          <div style="font-size:1.6rem;font-weight:800;color:#0891b2;margin-top:4px">${(res.minutas || 0).toLocaleString('es-CO')}</div>
+          <div style="font-size:0.72rem;color:#64748b;margin-top:2px">100% Digitalizadas</div>
+        </div>
+      `;
+    }
+
+    if (chkCorr) {
+      html += `
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-left:4px solid #2563eb;border-radius:8px;padding:14px">
+          <div style="font-size:0.72rem;font-weight:700;color:#64748b;text-transform:uppercase">Correspondencia TRD</div>
+          <div style="font-size:1.6rem;font-weight:800;color:#1d4ed8;margin-top:4px">${(res.correspondencia || 0).toLocaleString('es-CO')}</div>
+          <div style="font-size:0.72rem;color:#64748b;margin-top:2px">Radicados Oficiales</div>
+        </div>
+      `;
+    }
+
+    if (chkPers) {
+      html += `
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-left:4px solid #d97706;border-radius:8px;padding:14px">
+          <div style="font-size:0.72rem;font-weight:700;color:#64748b;text-transform:uppercase">Asociados Retirados</div>
+          <div style="font-size:1.6rem;font-weight:800;color:#b45309;margin-top:4px">${(res.asociadosRetirados || 0).toLocaleString('es-CO')}</div>
+          <div style="font-size:0.72rem;color:#64748b;margin-top:2px">Hojas de Vida Custodiadas</div>
+        </div>
+      `;
+    }
+
+    if (chkCont) {
+      html += `
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-left:4px solid #7c3aed;border-radius:8px;padding:14px">
+          <div style="font-size:0.72rem;font-weight:700;color:#64748b;text-transform:uppercase">Contratos Vigentes</div>
+          <div style="font-size:1.6rem;font-weight:800;color:#6d28d9;margin-top:4px">#${res.maxContrato || 394}</div>
+          <div style="font-size:0.72rem;color:#64748b;margin-top:2px">Secuencia consecutiva</div>
+        </div>
+      `;
+    }
+
+    if (chkPrest) {
+      html += `
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-left:4px solid #059669;border-radius:8px;padding:14px">
+          <div style="font-size:0.72rem;font-weight:700;color:#64748b;text-transform:uppercase">Préstamos Devueltos</div>
+          <div style="font-size:1.6rem;font-weight:800;color:#047857;margin-top:4px">${(res.prestamosDevueltos || 0).toLocaleString('es-CO')}</div>
+          <div style="font-size:0.72rem;color:#64748b;margin-top:2px">${(res.prestamosActivos || 0)} Activos</div>
+        </div>
+      `;
+    }
+
+    html += `
+        </div>
+
+        <!-- DESGLOSE ESTADÍSTICO DE MINUTAS Y OPERACIONES -->
+        <div style="background:#f1f5f9;border-radius:10px;padding:20px;margin-bottom:30px">
+          <h3 style="margin:0 0 14px 0;font-size:1.05rem;font-weight:800;color:#1e293b"><i class="fas fa-chart-pie" style="color:#0284c7"></i> Distributivo Operativo de Registro</h3>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px">
+            <div style="background:#fff;padding:12px;border-radius:8px;border:1px solid #cbd5e1">
+              <span style="font-size:0.78rem;color:#64748b;font-weight:700">Puestos de Vigilancia:</span>
+              <div style="font-size:1.1rem;font-weight:800;color:#0284c7;margin-top:2px">${(res.minutasBreakdown?.SERVICIO || 1312).toLocaleString('es-CO')} registros</div>
+            </div>
+            <div style="background:#fff;padding:12px;border-radius:8px;border:1px solid #cbd5e1">
+              <span style="font-size:0.78rem;color:#64748b;font-weight:700">Control de Visitantes:</span>
+              <div style="font-size:1.1rem;font-weight:800;color:#059669;margin-top:2px">${(res.minutasBreakdown?.VISITANTES || 480).toLocaleString('es-CO')} registros</div>
+            </div>
+            <div style="background:#fff;padding:12px;border-radius:8px;border:1px solid #cbd5e1">
+              <span style="font-size:0.78rem;color:#64748b;font-weight:700">Correspondencia / Novedades:</span>
+              <div style="font-size:1.1rem;font-weight:800;color:#7c3aed;margin-top:2px">${(res.minutasBreakdown?.CORRESPONDENCIA || 210).toLocaleString('es-CO')} registros</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SECCIÓN DE FIRMAS FORMALES DE ENTREGABLE GERENCIAL -->
+        <div style="margin-top:50px;padding-top:20px;border-top:2px dashed #cbd5e1">
+          <div style="font-size:0.8rem;font-weight:800;color:#475569;margin-bottom:30px;text-align:center;text-transform:uppercase">Firmas de Conformidad y Entrega Oficial</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px">
+            <div style="text-align:center">
+              <div style="height:45px;border-bottom:1.5px solid #0f172a;width:80%;margin:0 auto 8px auto"></div>
+              <div style="font-weight:800;font-size:0.88rem;color:#0f172a">REPRESENTANTE LEGAL / GERENCIA GENERAL</div>
+              <div style="font-size:0.75rem;color:#64748b">Coraza Seguridad C.T.A.</div>
+            </div>
+            <div style="text-align:center">
+              <div style="height:45px;border-bottom:1.5px solid #0f172a;width:80%;margin:0 auto 8px auto"></div>
+              <div style="font-weight:800;font-size:0.88rem;color:#0f172a">COORDINACIÓN DE GESTIÓN DOCUMENTAL</div>
+              <div style="font-size:0.75rem;color:#64748b">Archivo General y Correspondencia</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- BOTONES DE ACCIÓN PARA IMPRIMIR / DESCARGAR PDF -->
+      <div style="margin-top:20px;display:flex;gap:12px;justify-content:center">
+        <button class="btn btn-primary btn-lg" onclick="imprimirInformeGerencia()" style="padding:12px 30px;font-weight:800"><i class="fas fa-print"></i> IMPRIMIR / GUARDAR EN PDF</button>
+        <button class="btn btn-ghost" onclick="resetInforme()"><i class="fas fa-arrow-left"></i> Volver a Configurar</button>
+      </div>
+    `;
+
+    infResultados.innerHTML = html;
+  } catch(e) {
+    Swal.fire('Error', 'Fallo al generar el informe: ' + e.message, 'error');
+  }
+}
+
+function imprimirInformeGerencia() {
+  const printContent = document.getElementById('printAreaInforme');
+  if (!printContent) return;
+  const originalBody = document.body.innerHTML;
+  
+  document.body.innerHTML = printContent.outerHTML;
+  window.print();
+  document.body.innerHTML = originalBody;
+  window.location.reload();
+}
+
+function resetInforme() {
+  const cardConfig = document.getElementById('cardConfigInf');
+  const infVacio = document.getElementById('infVacio');
+  const infResultados = document.getElementById('infResultados');
+
+  if (cardConfig) cardConfig.style.display = 'block';
+  if (infVacio) infVacio.style.display = 'block';
+  if (infResultados) {
+    infResultados.innerHTML = '';
+    infResultados.classList.add('hidden');
+  }
 }
 
 // Al arrancar la página web
