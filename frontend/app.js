@@ -134,20 +134,82 @@ const DEPTOS_MOCK = [
 
 const MAPA_TRD_DEPTOS = {
   GE: [
-    { val: '100-10.01', label: '100-10.01 — GERENCIA / Cartas y Comunicaciones (10 Años C.Co 60)' },
-    { val: '100-10.02', label: '100-10.02 — GERENCIA / Actas y Resoluciones (Histórico)' }
+    { val: '100-10.01', label: '100-10.01 — GERENCIA / Cartas y Comunicaciones Oficiales (10 Años C.Co)' },
+    { val: '100-10.02', label: '100-10.02 — GERENCIA / Actas de Consejo de Administración y Asambleas (Conservación Total)' },
+    { val: '100-10.03', label: '100-10.03 — GERENCIA / Resoluciones, Directivas y Políticas Institucionales (Conservación Total)' },
+    { val: '100-10.04', label: '100-10.04 — GERENCIA / Informes de Gestión y Rendición de Cuentas (5 Años)' },
+    { val: '100-10.05', label: '100-10.05 — GERENCIA / Convenios e Intermediación Cooperativa (10 Años)' }
   ],
-  GH: [{ val: '200-20.01', label: '200-20.01 — GESTION HUMANA / Historias Laborales y Expedientes (20 Años Ley 594)' }],
-  ST: [{ val: '210-21.01', label: '210-21.01 — SST / SG-SST y Exámenes Médicos Ocupacionales (20 Años Dec. 1072)' }],
-  GF: [{ val: '300-30.01', label: '300-30.01 — FINANCIERA / Comprobantes y Facturas Contables (10 Años Ley 527)' }],
-  CP: [{ val: '310-30.01', label: '310-30.01 — COMPRAS / Comprobantes y Facturas (10 Años C.Co)' }],
-  CM: [{ val: '320-30.01', label: '320-30.01 — COMERCIAL / Comprobantes y Facturas (10 Años C.Co)' }],
-  OP: [{ val: '400-40.01', label: '400-40.01 — OPERACIONES / Minutas y Reportes Operativos (5 Años AGN)' }],
-  SE: [{ val: '410-40.01', label: '410-40.01 — SEGURIDAD ELECTRONICA / Informes Técnicos de Puesto' }],
-  SP: [{ val: '420-42.01', label: '420-42.01 — SUPERVISION / Informes de Ronda y Control (Continuidad)' }],
-  DJ: [{ val: '500-50.01', label: '500-50.01 — JURIDICO / Contratos y Convenios (20 Años Ley 80)' }],
-  CE: [{ val: '900-10.01', label: '900-10.01 — CLIENTE EXTERNO / Cartas y Comunicaciones Oficiales' }],
-  AS: [{ val: '910-10.01', label: '910-10.01 — ASOCIADOS / Cartas y Comunicaciones CTA' }]
+  GH: [
+    { val: '200-20.01', label: '200-20.01 — GESTION HUMANA / Historias Laborales y Expedientes de Asociados/Empleados (20 Años Ley 594)' },
+    { val: '200-20.02', label: '200-20.02 — GESTION HUMANA / Cartas, Memorandos y Comunicaciones Internas (5 Años)' },
+    { val: '200-20.03', label: '200-20.03 — GESTION HUMANA / Nóminas de Pago y Planillas PILA/Aportes (20 Años Ley 100)' },
+    { val: '200-20.04', label: '200-20.04 — GESTION HUMANA / Procesos Disciplinarios y Descargos (10 Años)' },
+    { val: '200-20.05', label: '200-20.05 — GESTION HUMANA / Certificaciones Laborales y Paz y Salvos (10 Años)' },
+    { val: '200-20.06', label: '200-20.06 — GESTION HUMANA / Hojas de Vida de Aspirantes e Inactivos (3 Años)' },
+    { val: '200-20.07', label: '200-20.07 — GESTION HUMANA / Capacitaciones y Programas de Formación (5 Años)' }
+  ],
+  ST: [
+    { val: '210-21.01', label: '210-21.01 — SST / Expedientes de SG-SST y Matriz de Riesgos (20 Años Dec. 1072)' },
+    { val: '210-21.02', label: '210-21.02 — SST / Exámenes Médicos Ocupacionales e Historial Clínico (20 Años Ley 9ª)' },
+    { val: '210-21.03', label: '210-21.03 — SST / Reportes de Accidentes de Trabajo e Incidentes - ATEL (20 Años Dec. 1295)' },
+    { val: '210-21.04', label: '210-21.04 — SST / Actas del COPASST y Comité de Convivencia Laboral (10 Años)' },
+    { val: '210-21.05', label: '210-21.05 — SST / Investigaciones de Enfermedades Laborales y Profilaxis (20 Años)' }
+  ],
+  GF: [
+    { val: '300-30.01', label: '300-30.01 — FINANCIERA / Comprobantes de Egreso, Ingreso y Facturación (10 Años Ley 527)' },
+    { val: '300-30.02', label: '300-30.02 — FINANCIERA / Declaraciones Tributarias e Impuestos DIAN/Municipal (10 Años)' },
+    { val: '300-30.03', label: '300-30.03 — FINANCIERA / Estados Financieros, Balances y Libros Oficiales (Conservación Total)' },
+    { val: '300-30.04', label: '300-30.04 — FINANCIERA / Conciliaciones Bancarias y Extractos (10 Años)' },
+    { val: '300-30.05', label: '300-30.05 — FINANCIERA / Informes de Revisoría Fiscal y Auditorías (10 Años)' }
+  ],
+  CP: [
+    { val: '310-31.01', label: '310-31.01 — COMPRAS / Órdenes de Compra y Solicitudes de Suministro (5 Años)' },
+    { val: '310-31.02', label: '310-31.02 — COMPRAS / Hojas de Vida y Evaluación de Proveedores (5 Años)' },
+    { val: '310-31.03', label: '310-31.03 — COMPRAS / Facturas y Remisiones de Proveedores (10 Años C.Co)' },
+    { val: '310-31.04', label: '310-31.04 — COMPRAS / Inventarios de Equipos de Armamento y Seguridad (10 Años SuperVigilancia)' }
+  ],
+  CM: [
+    { val: '320-32.01', label: '320-32.01 — COMERCIAL / Ofertas Comerciales y Cotizaciones (5 Años)' },
+    { val: '320-32.02', label: '320-32.02 — COMERCIAL / Licitaciones Públicas y Privadas (10 Años)' },
+    { val: '320-32.03', label: '320-32.03 — COMERCIAL / Cartas y Comunicaciones con Clientes (5 Años)' },
+    { val: '320-32.04', label: '320-32.04 — COMERCIAL / Encuestas de Satisfacción y PQRS de Clientes (3 Años)' }
+  ],
+  OP: [
+    { val: '400-40.01', label: '400-40.01 — OPERACIONES / Minutas de Servicio y Libros de Puestos de Vigilancia (5 Años SuperVigilancia)' },
+    { val: '400-40.02', label: '400-40.02 — OPERACIONES / Reportes de Novedades e Siniestros en Puestos (5 Años)' },
+    { val: '400-40.03', label: '400-40.03 — OPERACIONES / Programación de Turnos, Cuadrantes y Malla Operativa (3 Años)' },
+    { val: '400-40.04', label: '400-40.04 — OPERACIONES / Control de Armamento, Salvoconductos y Municiómetro (10 Años Indumil)' },
+    { val: '400-40.05', label: '400-40.05 — OPERACIONES / Informes de Inspección de Puestos y Estudio de Seguridad (5 Años)' }
+  ],
+  SE: [
+    { val: '410-41.01', label: '410-41.01 — SEGURIDAD ELECTRONICA / Informes Técnicos de Mantenimiento CCTV y Alarmas (5 Años)' },
+    { val: '410-41.02', label: '410-41.02 — SEGURIDAD ELECTRONICA / Bitácoras de Monitoreo de Alarmas y Video (3 Años)' },
+    { val: '410-41.03', label: '410-41.03 — SEGURIDAD ELECTRONICA / Hojas de Vida de Equipos Tecnológicos y Software (5 Años)' }
+  ],
+  SP: [
+    { val: '420-42.01', label: '420-42.01 — SUPERVISION / Informes de Ronda, Supervisión y Verificación de Puestos (3 Años)' },
+    { val: '420-42.02', label: '420-42.02 — SUPERVISION / Planillas de Control de Vehículos y Patrullas (3 Años)' },
+    { val: '420-42.03', label: '420-42.03 — SUPERVISION / Pruebas de Alcoholemia y Poligrafía Operativa (5 Años)' }
+  ],
+  DJ: [
+    { val: '500-50.01', label: '500-50.01 — JURIDICO / Contratos de Prestación de Servicios de Vigilancia (20 Años Ley 80 / C.Co)' },
+    { val: '500-50.02', label: '500-50.02 — JURIDICO / Convenios Interinstitucionales y Alianzas (10 Años)' },
+    { val: '500-50.03', label: '500-50.03 — JURIDICO / Procesos Judiciales, Tutelas y Demandas (20 Años)' },
+    { val: '500-50.04', label: '500-50.04 — JURIDICO / Pólizas de Seguro, Responsabilidad Civil y Garantías (10 Años)' },
+    { val: '500-50.05', label: '500-50.05 — JURIDICO / Trámites y Licencias ante la SuperVigilancia (Conservación Total)' }
+  ],
+  CE: [
+    { val: '900-90.01', label: '900-90.01 — CLIENTE EXTERNO / Correspondencia Recibida de Clientes (5 Años)' },
+    { val: '900-90.02', label: '900-90.02 — CLIENTE EXTERNO / Solicitudes de Servicio e Informes Especiales (5 Años)' },
+    { val: '900-90.03', label: '900-90.03 — CLIENTE EXTERNO / Actas de Entrega y Empalme de Puestos (10 Años)' }
+  ],
+  AS: [
+    { val: '910-91.01', label: '910-91.01 — ASOCIADOS / Comunicaciones y Solicitudes de Asociados CTA (10 Años)' },
+    { val: '910-91.02', label: '910-91.02 — ASOCIADOS / Convenios de Trabajo Asociado y Reglamentos (20 Años)' },
+    { val: '910-91.03', label: '910-91.03 — ASOCIADOS / Solicitudes de Retiro y Compensaciones CTA (20 Años)' },
+    { val: '910-91.04', label: '910-91.04 — ASOCIADOS / Certificados de Compensación y Aportes Sociales (20 Años)' }
+  ]
 };
 
 function popularSelectsConfig() {
