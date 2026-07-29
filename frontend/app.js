@@ -678,17 +678,18 @@ async function cargarMapaArchivo() {
   grid.innerHTML = '<div style="text-align:center;grid-column:1/-1;padding:20px;color:var(--text-muted)"><i class="fas fa-spinner fa-spin"></i> Cargando Slots desde PostgreSQL...</div>';
   
   try {
-    // Generar slots físicos de archivo A1-D9
     let html = '';
     const letras = ['A', 'B', 'C', 'D'];
     
-    // Consultar todos los documentos para ver qué ubicaciones están ocupadas (columna voxelsera)
+    // Consultar todos los documentos para ver qué ubicaciones están ocupadas
     const res = await apiCall('/api/busqueda?query=');
-    const ocupados = new Set();
-    if (res.success) {
+    const conteoSlots = {};
+    if (res.success && res.resultados) {
       res.resultados.forEach(r => {
-        if(r.detalles && r.detalles.VOXELSERA) {
-          ocupados.add(r.detalles.VOXELSERA);
+        const vox = r.detalles && (r.detalles.VOXELSERA || r.detalles.voxelsera);
+        if (vox) {
+          const norm = vox.startsWith('VOXEL_') ? vox : `VOXEL_${vox}`;
+          conteoSlots[norm] = (conteoSlots[norm] || 0) + 1;
         }
       });
     }
@@ -696,10 +697,16 @@ async function cargarMapaArchivo() {
     for (let l of letras) {
       for (let i = 1; i <= 9; i++) {
         const slotId = `VOXEL_${l}${i}`;
-        const isOcc = ocupados.has(slotId);
+        const count = conteoSlots[slotId] || 0;
+        const isOcc = count > 0;
+        const countBadge = count > 0 ? `<span style="font-size:0.65rem;margin-top:2px;background:var(--accent-green);color:#fff;padding:1px 6px;border-radius:10px;font-weight:800">${count} doc${count > 1 ? 's' : ''}</span>` : '';
+
         html += `
-          <div class="slot ${isOcc ? 'occ' : ''}" id="slot_${slotId}" onclick="verDetallesSlot('${slotId}', ${isOcc})" title="Slot ${slotId}">
-            ${l}${i}
+          <div class="slot ${isOcc ? 'occ' : ''}" id="slot_${slotId}" onclick="verDetallesSlot('${slotId}', ${isOcc})" title="Slot ${slotId} (${count} documentos)">
+            <span style="display:flex;align-items:center;gap:4px">
+              ${isOcc ? '<i class="fas fa-box" style="font-size:0.75rem"></i>' : ''} ${l}${i}
+            </span>
+            ${countBadge}
           </div>
         `;
       }
@@ -711,23 +718,58 @@ async function cargarMapaArchivo() {
 }
 
 async function verDetallesSlot(slotId, isOcc) {
+  const normId = slotId.replace('VOXEL_', '');
+  
   if(!isOcc) {
-    Swal.fire(`Slot ${slotId}`, 'Este compartimento está disponible para archivar.', 'info');
+    Swal.fire({
+      title: `📦 Estantería / Compartimento ${normId}`,
+      text: 'Este slot físico se encuentra 100% disponible para archivar nuevos expedientes o minutas.',
+      icon: 'info',
+      confirmButtonText: 'Entendido'
+    });
     return;
   }
   
   try {
-    const res = await apiCall(`/api/busqueda?query=${slotId}`);
-    if (res.success && res.resultados.length > 0) {
-      const doc = res.resultados[0];
-      Swal.fire({
-        title: `Slot ${slotId} (Ocupado)`,
-        html: `<strong>Módulo:</strong> ${doc.modulo}<br><strong>Código:</strong> ${doc.codigo}<br><strong>Descripción:</strong> ${doc.titulo}`,
-        icon: 'success'
+    const res = await apiCall(`/api/busqueda?query=${encodeURIComponent(slotId)}`);
+    if (res.success && res.resultados && res.resultados.length > 0) {
+      // Filtrar resultados exactos para este slot
+      const docs = res.resultados.filter(r => {
+        const vox = r.detalles && (r.detalles.VOXELSERA || r.detalles.voxelsera);
+        return vox && (vox === slotId || vox === normId);
       });
+
+      const items = docs.length > 0 ? docs : res.resultados;
+
+      let html = `<div style="text-align:left;max-height:380px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding-right:4px">`;
+      items.forEach(d => {
+        html += `
+          <div style="background:var(--bg-elevated);border:1px solid var(--border-medium);border-radius:8px;padding:12px;display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <span class="badge badge-info" style="font-size:0.65rem;margin-bottom:4px">${d.modulo}</span>
+              <div style="font-weight:800;color:var(--accent-primary);font-size:1rem">${d.codigo}</div>
+              <div style="font-size:0.82rem;color:var(--text-secondary);margin-top:2px">${d.titulo}</div>
+            </div>
+            <button class="btn btn-sm btn-ghost" style="color:var(--accent-primary)" onclick="Swal.close(); mostrarDetalleRegistro('${d.id}', '${d.modulo}')" title="Ver ficha completa">
+              <i class="fas fa-eye" style="font-size:1.1rem"></i>
+            </button>
+          </div>
+        `;
+      });
+      html += `</div>`;
+
+      Swal.fire({
+        title: `📦 Compartimento Físico ${normId} (${items.length} Archivo${items.length > 1 ? 's' : ''})`,
+        html: html,
+        width: '560px',
+        showCloseButton: true,
+        showConfirmButton: false
+      });
+    } else {
+      Swal.fire(`Compartimento ${normId}`, 'No se encontraron registros detallados para este slot.', 'warning');
     }
   } catch(e) {
-    Swal.fire('Error', 'No pudimos consultar el detalle del slot', 'error');
+    Swal.fire('Error', 'No pudimos consultar el detalle del compartimento físico', 'error');
   }
 }
 
