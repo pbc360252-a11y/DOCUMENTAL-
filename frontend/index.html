@@ -61,7 +61,7 @@
     <div class="nav-label">Gestión</div>
     <button class="nav-item" onclick="showSection('minutas')"><i class="fas fa-file-signature"></i>Minutas</button>
     <button class="nav-item" onclick="showSection('correspondencia')"><i class="fas fa-envelope"></i>Correspondencia</button>
-    <button class="nav-item" onclick="showSection('personal')"><i class="fas fa-user-minus"></i>Personal Inactivo</button>
+    <button class="nav-item" onclick="showSection('personal')"><i class="fas fa-user-minus"></i>Asociados Retirados</button>
     <button class="nav-item" onclick="showSection('contratos')"><i class="fas fa-file-contract"></i>Contratos</button>
     <button class="nav-item" onclick="showSection('biblioteca')"><i class="fas fa-book-open"></i>Biblioteca</button>
     <button class="nav-item" onclick="showSection('prestamos')"><i class="fas fa-exchange-alt"></i>Préstamos</button>
@@ -251,7 +251,7 @@
   <!-- PERSONAL INACTIVO -->
   <div id="personal" class="section">
     <div class="card">
-      <div class="card-header"><span class="card-title"><i class="fas fa-user-minus"></i>Registrar Personal Inactivo</span></div>
+      <div class="card-header"><span class="card-title"><i class="fas fa-user-minus"></i>Registrar Asociado Retirado</span></div>
       <form onsubmit="registrarPersonal(event)">
         <div class="form-grid">
           <div class="form-group"><label>Tipo de Persona *</label>
@@ -284,7 +284,7 @@
     <!-- LISTA PERSONAL -->
     <div class="card">
       <div class="card-header">
-        <span class="card-title"><i class="fas fa-list"></i>Listado de Personal Inactivo</span>
+        <span class="card-title"><i class="fas fa-list"></i>Listado de Asociados Retirados</span>
         <div class="flex-row">
           <button class="btn btn-sm btn-primary" id="btnFiltroTodos" onclick="filtrarPersonalTipo('TODOS')"><i class="fas fa-users"></i>Todos</button>
           <button class="btn btn-sm btn-ghost" id="btnFiltroEmpleado" onclick="filtrarPersonalTipo('EMPLEADO')">👷 Empleados</button>

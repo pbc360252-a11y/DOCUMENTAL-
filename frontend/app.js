@@ -921,6 +921,11 @@ async function cargarDashboard() {
           <div class="kpi-value">${res.contratos}</div>
           <div class="kpi-label">Contratos Vigentes</div>
         </div>
+        <div class="kpi-card" style="--kpi-color:var(--accent-gold)">
+          <span class="kpi-icon">🤝</span>
+          <div class="kpi-value">${res.asociadosRetirados || 0}</div>
+          <div class="kpi-label">Asociados Retirados</div>
+        </div>
         <div class="kpi-card" style="--kpi-color:var(--accent-amber)">
           <span class="kpi-icon">🔄</span>
           <div class="kpi-value">${res.prestamosActivos}</div>

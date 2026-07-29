@@ -530,13 +530,15 @@ app.get('/api/analytics', autenticarToken, async (req, res) => {
     const resMin = await db.query('SELECT COUNT(*) FROM minutas');
     const resCtr = await db.query('SELECT COUNT(*) FROM contratos');
     const resPrest = await db.query("SELECT COUNT(*) FROM prestamos WHERE estado = 'ACTIVO'");
+    const resAsoc = await db.query('SELECT COUNT(*) FROM personal_inactivo');
 
     res.json({
       success: true,
       correspondencia: parseInt(resCorr.rows[0].count, 10),
       minutas: parseInt(resMin.rows[0].count, 10),
       contratos: parseInt(resCtr.rows[0].count, 10),
-      prestamosActivos: parseInt(resPrest.rows[0].count, 10)
+      prestamosActivos: parseInt(resPrest.rows[0].count, 10),
+      asociadosRetirados: parseInt(resAsoc.rows[0].count, 10)
     });
   } catch(e) {
     res.status(500).json({ success: false, message: e.message });
