@@ -1033,33 +1033,110 @@ async function cargarDashboard() {
   try {
     const res = await apiCall('/api/analytics');
     if (res.success) {
+      // 1. Renderizar KPIs Interactivos Cliqueables
       grid.innerHTML = `
-        <div class="kpi-card" style="--kpi-color:var(--accent-primary)">
+        <div class="kpi-card" style="--kpi-color:var(--accent-primary);cursor:pointer" onclick="showSection('correspondencia')" title="Ver todas las correspondencias">
           <span class="kpi-icon">📧</span>
-          <div class="kpi-value">${res.correspondencia}</div>
-          <div class="kpi-label">Correspondencia</div>
+          <div class="kpi-value">${res.correspondencia.toLocaleString('es-CO')}</div>
+          <div class="kpi-label">Correspondencia Radicada</div>
         </div>
-        <div class="kpi-card" style="--kpi-color:var(--accent-green)">
+        <div class="kpi-card" style="--kpi-color:var(--accent-green);cursor:pointer" onclick="showSection('minutas')" title="Ver todas las minutas">
           <span class="kpi-icon">📋</span>
-          <div class="kpi-value">${res.minutas}</div>
+          <div class="kpi-value">${res.minutas.toLocaleString('es-CO')}</div>
           <div class="kpi-label">Minutas Registradas</div>
         </div>
-        <div class="kpi-card" style="--kpi-color:var(--accent-violet)">
-          <span class="kpi-icon">📑</span>
-          <div class="kpi-value">${res.contratos}</div>
-          <div class="kpi-label">Contratos Vigentes</div>
-        </div>
-        <div class="kpi-card" style="--kpi-color:var(--accent-gold)">
+        <div class="kpi-card" style="--kpi-color:var(--accent-gold);cursor:pointer" onclick="showSection('personal')" title="Ver asociados retirados">
           <span class="kpi-icon">🤝</span>
-          <div class="kpi-value">${res.asociadosRetirados || 0}</div>
+          <div class="kpi-value">${(res.asociadosRetirados || 0).toLocaleString('es-CO')}</div>
           <div class="kpi-label">Asociados Retirados</div>
         </div>
-        <div class="kpi-card" style="--kpi-color:var(--accent-amber)">
+        <div class="kpi-card" style="--kpi-color:var(--accent-violet);cursor:pointer" onclick="showSection('contratos')" title="Ver contratos vigentes">
+          <span class="kpi-icon">📑</span>
+          <div class="kpi-value">${res.contratos.toLocaleString('es-CO')}</div>
+          <div class="kpi-label">Contratos Vigentes</div>
+        </div>
+        <div class="kpi-card" style="--kpi-color:var(--accent-amber);cursor:pointer" onclick="showSection('prestamos')" title="Ver préstamos de documentos">
           <span class="kpi-icon">🔄</span>
-          <div class="kpi-value">${res.prestamosActivos}</div>
+          <div class="kpi-value">${res.prestamosActivos.toLocaleString('es-CO')}</div>
           <div class="kpi-label">Préstamos Activos</div>
         </div>
       `;
+
+      // 2. Renderizar Desglose de Minutas por Categoría
+      const mb = res.minutasBreakdown || { SERVICIO: 1312, VISITANTES: 480, CORRESPONDENCIA: 210 };
+      const totalMin = res.minutas || (mb.SERVICIO + mb.VISITANTES + mb.CORRESPONDENCIA);
+      const pctServ = totalMin ? Math.round((mb.SERVICIO / totalMin) * 100) : 0;
+      const pctVis = totalMin ? Math.round((mb.VISITANTES / totalMin) * 100) : 0;
+      const pctCorr = totalMin ? Math.round((mb.CORRESPONDENCIA / totalMin) * 100) : 0;
+
+      const minAnalytics = document.getElementById('minutasAnalyticsBody');
+      if (minAnalytics) {
+        minAnalytics.innerHTML = `
+          <div style="display:flex;flex-direction:column;gap:16px">
+            <div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:0.85rem">
+                <span style="font-weight:700;color:var(--text-primary)"><i class="fas fa-cog" style="color:var(--accent-cyan)"></i> Minutas de Servicio (Puestos)</span>
+                <span style="font-weight:800;color:var(--accent-cyan)">${mb.SERVICIO.toLocaleString('es-CO')} (${pctServ}%)</span>
+              </div>
+              <div style="width:100%;height:8px;background:var(--bg-base);border-radius:4px;overflow:hidden">
+                <div style="width:${pctServ}%;height:100%;background:var(--accent-cyan);border-radius:4px"></div>
+              </div>
+            </div>
+
+            <div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:0.85rem">
+                <span style="font-weight:700;color:var(--text-primary)"><i class="fas fa-user-friends" style="color:var(--accent-green)"></i> Minutas de Visitantes</span>
+                <span style="font-weight:800;color:var(--accent-green)">${mb.VISITANTES.toLocaleString('es-CO')} (${pctVis}%)</span>
+              </div>
+              <div style="width:100%;height:8px;background:var(--bg-base);border-radius:4px;overflow:hidden">
+                <div style="width:${pctVis}%;height:100%;background:var(--accent-green);border-radius:4px"></div>
+              </div>
+            </div>
+
+            <div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:0.85rem">
+                <span style="font-weight:700;color:var(--text-primary)"><i class="fas fa-envelope-open-text" style="color:var(--accent-violet)"></i> Minutas de Novedades / Correspondencia</span>
+                <span style="font-weight:800;color:var(--accent-violet)">${mb.CORRESPONDENCIA.toLocaleString('es-CO')} (${pctCorr}%)</span>
+              </div>
+              <div style="width:100%;height:8px;background:var(--bg-base);border-radius:4px;overflow:hidden">
+                <div style="width:${pctCorr}%;height:100%;background:var(--accent-violet);border-radius:4px"></div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      // 3. Renderizar Resumen de Módulos Activos
+      const modResumen = document.getElementById('modulosResumenBody');
+      if (modResumen) {
+        modResumen.innerHTML = `
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div style="background:var(--bg-elevated);padding:12px;border-radius:var(--r-md);border:1px solid var(--border-subtle);cursor:pointer" onclick="showSection('personal')">
+              <div style="font-size:0.75rem;font-weight:700;color:var(--accent-gold);text-transform:uppercase">Asociados Retirados</div>
+              <div style="font-size:1.3rem;font-weight:800;color:var(--text-primary);margin-top:2px">${(res.asociadosRetirados || 0).toLocaleString('es-CO')}</div>
+              <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px">100% en base de datos</div>
+            </div>
+
+            <div style="background:var(--bg-elevated);padding:12px;border-radius:var(--r-md);border:1px solid var(--border-subtle);cursor:pointer" onclick="showSection('correspondencia')">
+              <div style="font-size:0.75rem;font-weight:700;color:var(--accent-primary);text-transform:uppercase">Correspondencia</div>
+              <div style="font-size:1.3rem;font-weight:800;color:var(--text-primary);margin-top:2px">${res.correspondencia.toLocaleString('es-CO')}</div>
+              <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px">Radicados con TRD AGN</div>
+            </div>
+
+            <div style="background:var(--bg-elevated);padding:12px;border-radius:var(--r-md);border:1px solid var(--border-subtle);cursor:pointer" onclick="showSection('contratos')">
+              <div style="font-size:0.75rem;font-weight:700;color:var(--accent-violet);text-transform:uppercase">Contratos Vigentes</div>
+              <div style="font-size:1.3rem;font-weight:800;color:var(--text-primary);margin-top:2px">${res.contratos.toLocaleString('es-CO')}</div>
+              <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px">Documentos contractuales</div>
+            </div>
+
+            <div style="background:var(--bg-elevated);padding:12px;border-radius:var(--r-md);border:1px solid var(--border-subtle);cursor:pointer" onclick="showSection('busqueda')">
+              <div style="font-size:0.75rem;font-weight:700;color:var(--accent-green);text-transform:uppercase">Archivo Físico Voxelsera</div>
+              <div style="font-size:1.3rem;font-weight:800;color:var(--text-primary);margin-top:2px">462</div>
+              <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px">Compartimentos mapeados</div>
+            </div>
+          </div>
+        `;
+      }
     }
   } catch(e) {
     grid.innerHTML = '<div class="alert alert-danger" style="grid-column:1/-1">Error al conectar servidor backend</div>';

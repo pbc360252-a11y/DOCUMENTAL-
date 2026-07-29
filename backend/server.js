@@ -620,13 +620,23 @@ app.get('/api/analytics', autenticarToken, async (req, res) => {
     const resPrest = await db.query("SELECT COUNT(*) FROM prestamos WHERE estado = 'ACTIVO'");
     const resAsoc = await db.query('SELECT COUNT(*) FROM personal_inactivo');
 
+    // Desglose de Minutas por Tipo
+    const minBreakdown = await db.query(`
+      SELECT tipo_minuta, COUNT(*) as total FROM minutas GROUP BY tipo_minuta
+    `);
+    const minObj = { SERVICIO: 0, VISITANTES: 0, CORRESPONDENCIA: 0 };
+    minBreakdown.rows.forEach(r => {
+      if (r.tipo_minuta) minObj[r.tipo_minuta.toUpperCase()] = parseInt(r.total, 10);
+    });
+
     res.json({
       success: true,
       correspondencia: parseInt(resCorr.rows[0].count, 10),
       minutas: parseInt(resMin.rows[0].count, 10),
       contratos: parseInt(resCtr.rows[0].count, 10),
       prestamosActivos: parseInt(resPrest.rows[0].count, 10),
-      asociadosRetirados: parseInt(resAsoc.rows[0].count, 10)
+      asociadosRetirados: parseInt(resAsoc.rows[0].count, 10),
+      minutasBreakdown: minObj
     });
   } catch(e) {
     res.status(500).json({ success: false, message: e.message });
