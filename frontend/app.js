@@ -1211,6 +1211,7 @@ function showSection(secId) {
   if (secId === 'busqueda') ejecutarBusqueda();
   if (secId === 'biblioteca') cargarBiblioteca();
   if (secId === 'contratos') cargarContratos();
+  if (secId === 'grafo') cargarGrafoConocimiento();
   if (secId === 'informes') resetInforme();
 }
 
@@ -2382,6 +2383,182 @@ function resetInforme() {
 // 12. GRAFO DE CONOCIMIENTO (GRAPHIFY LABS INTEGRATION)
 // ==========================================
 window.networkGrafo = null;
+window.allGrafoNodes = [];
+window.allGrafoEdges = [];
+
+async function cargarGrafoConocimiento() {
+  const container = document.getElementById('graphifyCanvas');
+  if (!container) return;
+
+  container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#94a3b8;font-weight:700;font-size:1.1rem"><i class="fas fa-spinner fa-spin" style="margin-right:10px;font-size:1.6rem;color:#f59e0b"></i> Construyendo Red de Conocimiento...</div>';
+
+  try {
+    const resCarpetas = await apiCall('/api/biblioteca/arbol').catch(() => ({ carpetas: [] }));
+
+    const nodes = [];
+    const edges = [];
+
+    // 1. Hub Central
+    nodes.push({
+      id: 'HUB',
+      label: 'CORAZA SEGURIDAD\nC.T.A. · SGD v7.4',
+      shape: 'ellipse',
+      size: 38,
+      color: { background: '#f59e0b', border: '#d97706', highlight: { background: '#fbbf24', border: '#f59e0b' } },
+      font: { color: '#fff', size: 15, bold: true, face: 'Inter' },
+      shadow: { enabled: true, color: 'rgba(245,158,11,0.6)', size: 20 },
+      typeGroup: 'HUB'
+    });
+
+    // 2. Departamentos Corporativos
+    const deptos = [
+      { sigla:'GE', nombre:'Gerencia General' },
+      { sigla:'GH', nombre:'Gestión Humana' },
+      { sigla:'ST', nombre:'SG-SST' },
+      { sigla:'GF', nombre:'Financiera' },
+      { sigla:'CP', nombre:'Compras' },
+      { sigla:'CM', nombre:'Comercial' },
+      { sigla:'OP', nombre:'Operaciones' },
+      { sigla:'SE', nombre:'Seg. Electrónica' },
+      { sigla:'SP', nombre:'Supervisión' },
+      { sigla:'DJ', nombre:'Jurídico' },
+      { sigla:'CE', nombre:'Cliente Externo' },
+      { sigla:'AS', nombre:'Asociados CTA' }
+    ];
+
+    deptos.forEach(d => {
+      const nId = `D_${d.sigla}`;
+      nodes.push({
+        id: nId,
+        label: `${d.sigla}\n${d.nombre}`,
+        shape: 'box',
+        color: { background: '#0284c7', border: '#0369a1', highlight: { background: '#38bdf8', border: '#0284c7' } },
+        font: { color: '#fff', size: 11, face: 'Inter' },
+        shadow: { enabled: true, color: 'rgba(2,132,199,0.4)', size: 10 },
+        typeGroup: 'DEPARTAMENTO'
+      });
+      edges.push({ from: 'HUB', to: nId, color: { color: 'rgba(2,132,199,0.5)', highlight: '#38bdf8' }, width: 2, length: 180 });
+    });
+
+    // 3. TRD Norma AGN (top 2 por depto)
+    const trdMap = {
+      GE: ['100-10.01 Actas','100-10.02 Resoluciones'],
+      GH: ['200-20.01 Historias Lab.','200-20.02 Nómina'],
+      ST: ['210-21.01 SG-SST','210-21.02 Exámenes'],
+      GF: ['300-30.01 Comprobantes','300-30.02 Presupuesto'],
+      CP: ['310-31.01 Órdenes Compra','310-31.02 Proveedores'],
+      CM: ['320-32.01 Propuestas','320-32.02 Clientes'],
+      OP: ['400-40.01 Minutas Puesto','400-40.02 Informes Op.'],
+      SE: ['410-41.01 Seg. Electrónica','410-41.02 Mantenimiento'],
+      SP: ['420-42.01 Supervisión','420-42.02 Turnos'],
+      DJ: ['500-50.01 Contratos Vig.','500-50.02 Poderes'],
+      CE: ['900-90.01 Contratos CE','900-90.02 Correspondencia'],
+      AS: ['910-91.01 Actas CTA','910-91.02 Asociados Ret.']
+    };
+
+    Object.entries(trdMap).forEach(([sigla, series]) => {
+      series.forEach((s, i) => {
+        const tId = `TRD_${sigla}_${i}`;
+        nodes.push({
+          id: tId,
+          label: s,
+          shape: 'dot',
+          size: 12,
+          color: { background: '#8b5cf6', border: '#7c3aed', highlight: { background: '#a78bfa', border: '#8b5cf6' } },
+          font: { color: '#ddd6fe', size: 9, face: 'Inter' },
+          typeGroup: 'TRD'
+        });
+        edges.push({ from: `D_${sigla}`, to: tId, color: { color: 'rgba(139,92,246,0.5)' }, dashes: true, width: 1.2 });
+      });
+    });
+
+    // 4. Estanterías Voxelsera
+    const voxels = [
+      { id:'VOX_A', label:'📋 Estante A\nMinutas de Puesto', depto:'OP' },
+      { id:'VOX_B', label:'🤝 Estante B\nAsociados Retirados', depto:'GH' },
+      { id:'VOX_C', label:'📑 Estante C\nContratos (#1–#394)', depto:'DJ' },
+      { id:'VOX_D', label:'📧 Estante D\nCorrespondencia', depto:'GE' }
+    ];
+    voxels.forEach(v => {
+      nodes.push({
+        id: v.id,
+        label: v.label,
+        shape: 'database',
+        color: { background: '#10b981', border: '#059669', highlight: { background: '#34d399', border: '#10b981' } },
+        font: { color: '#fff', size: 10, face: 'Inter' },
+        shadow: { enabled: true, color: 'rgba(16,185,129,0.4)', size: 10 },
+        typeGroup: 'VOXELSERA'
+      });
+      edges.push({ from: `D_${v.depto}`, to: v.id, color: { color: 'rgba(16,185,129,0.6)' }, width: 2 });
+    });
+
+    // 5. Biblioteca Documental
+    const carpetasBib = (resCarpetas?.carpetas || []).slice(0, 6);
+    carpetasBib.forEach(c => {
+      const bId = `BIB_${c.id}`;
+      nodes.push({
+        id: bId,
+        label: `📁 ${c.nombre}`,
+        shape: 'diamond',
+        size: 13,
+        color: { background: '#ec4899', border: '#db2777', highlight: { background: '#f472b6', border: '#ec4899' } },
+        font: { color: '#fce7f3', size: 9 },
+        typeGroup: 'DOCUMENTO'
+      });
+      edges.push({ from: 'D_GE', to: bId, color: { color: 'rgba(236,72,153,0.4)' }, dashes: true });
+    });
+
+    window.allGrafoNodes = nodes;
+    window.allGrafoEdges = edges;
+
+    // Badge
+    const badge = document.getElementById('badgeGrafoNodes');
+    if (badge) badge.textContent = `${nodes.length} nodos · ${edges.length} conexiones`;
+
+    // Render con Vis.js
+    if (typeof vis !== 'undefined') {
+      const data = { nodes: new vis.DataSet(nodes), edges: new vis.DataSet(edges) };
+      const opts = {
+        nodes: { borderWidth: 2, shadow: true },
+        edges: { width: 1.5, smooth: { type: 'curvedCW', roundness: 0.2 } },
+        physics: {
+          barnesHut: { gravitationalConstant: -4500, centralGravity: 0.4, springLength: 130, damping: 0.15 },
+          stabilization: { iterations: 200, updateInterval: 25 }
+        },
+        interaction: { hover: true, tooltipDelay: 150, zoomView: true, dragNodes: true, navigationButtons: true }
+      };
+      container.innerHTML = '';
+      window.networkGrafo = new vis.Network(container, data, opts);
+      window.networkGrafo.on('click', function(p) {
+        if (p.nodes.length > 0) {
+          const n = nodes.find(x => x.id === p.nodes[0]);
+          if (n) Swal.fire({ title: n.label.replace(/\n/g,' '), html: `<b>Tipo:</b> ${n.typeGroup}<br><b>ID Nodo:</b> ${n.id}`, icon: 'info', confirmButtonText: 'Cerrar', confirmButtonColor: '#0284c7' });
+        }
+      });
+    } else {
+      container.innerHTML = '<div class="alert alert-warning" style="margin:40px">Librería Vis.js no disponible.</div>';
+    }
+  } catch(e) {
+    container.innerHTML = `<div class="alert alert-danger" style="margin:40px">Error al construir el Grafo: ${e.message}</div>`;
+  }
+}
+
+function filtrarNodosGrafo() {
+  if (!window.networkGrafo) return;
+  const filtro = document.getElementById('filtroGrafoTipo')?.value || 'TODOS';
+  let fNodes = filtro === 'TODOS' ? window.allGrafoNodes : window.allGrafoNodes.filter(n => n.typeGroup === 'HUB' || n.typeGroup === filtro);
+  const ids = new Set(fNodes.map(n => n.id));
+  const fEdges = window.allGrafoEdges.filter(e => ids.has(e.from) && ids.has(e.to));
+  window.networkGrafo.setData({ nodes: new vis.DataSet(fNodes), edges: new vis.DataSet(fEdges) });
+}
+
+function estabilizarGrafo() {
+  if (window.networkGrafo) window.networkGrafo.stabilize();
+}
+
+function reiniciarZoomGrafo() {
+  if (window.networkGrafo) window.networkGrafo.fit({ animation: { duration: 800, easingFunction: 'easeInOutQuad' } });
+}
 
 
 // Al arrancar la página web
