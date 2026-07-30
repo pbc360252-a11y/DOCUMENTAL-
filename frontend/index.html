@@ -10,6 +10,7 @@
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
 </head>
 <body>
 
@@ -73,6 +74,7 @@
     <button class="nav-item" onclick="showSection('prestamos')"><i class="fas fa-exchange-alt"></i>Préstamos</button>
     <div class="nav-label">Herramientas</div>
     <button class="nav-item" onclick="showSection('busqueda')"><i class="fas fa-search"></i>Buscador Universal</button>
+    <button class="nav-item" onclick="showSection('grafo')"><i class="fas fa-project-diagram"></i>Grafo Graphify</button>
     <button class="nav-item" onclick="showSection('informes')"><i class="fas fa-chart-bar"></i>Informes</button>
     <div class="nav-label">Sistema</div>
     <button class="nav-item" onclick="showSection('usuarios')"><i class="fas fa-users-cog"></i>Usuarios</button>
@@ -538,6 +540,48 @@
     <div id="infVacio" style="text-align:center;padding:60px;color:var(--text-muted)">
       <i class="fas fa-chart-bar" style="font-size:3.5rem;opacity:.15"></i>
       <div style="margin-top:14px">Configure y genere su informe</div>
+    </div>
+  </div>
+
+  <!-- GRAFO DE CONOCIMIENTO (GRAPHIFY LABS) -->
+  <div id="grafo" class="section">
+    <div class="card" style="border: 1px solid var(--border-medium); background: var(--bg-card); box-shadow: 0 10px 30px rgba(0,0,0,0.15);">
+      <div class="card-header" style="border-bottom: 1px solid var(--border-subtle); padding-bottom: 14px; margin-bottom: 20px;">
+        <span class="card-title" style="font-size: 1.25rem; font-weight: 800; color: var(--accent-primary);"><i class="fas fa-project-diagram"></i> Graphify Knowledge Graph — Red de Conocimiento Institucional</span>
+        <span class="badge badge-info" id="badgeGrafoNodes">0 nodos de red</span>
+      </div>
+
+      <!-- Controles del Grafo -->
+      <div style="background: var(--bg-elevated); border: 1.5px solid var(--border-medium); border-radius: var(--r-lg); padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+          <label style="font-size: 0.8rem; font-weight: 700; color: var(--text-secondary);">FILTRAR NODOS:</label>
+          <select id="filtroGrafoTipo" class="inp" style="width: auto; min-width: 200px; font-size: 0.85rem;" onchange="filtrarNodosGrafo()">
+            <option value="TODOS">🌐 Todos los Nodos de Red</option>
+            <option value="DEPARTAMENTO">🏢 Departamentos Corporativos</option>
+            <option value="TRD">📑 Series y Subseries TRD AGN</option>
+            <option value="VOXELSERA">📦 Estanterías Archivo Voxelsera</option>
+            <option value="DOCUMENTO">📄 Registros Documentales</option>
+          </select>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <button class="btn btn-ghost btn-sm" onclick="estabilizarGrafo()"><i class="fas fa-sync-alt"></i> Estabilizar Física</button>
+          <button class="btn btn-ghost btn-sm" onclick="reiniciarZoomGrafo()"><i class="fas fa-search-minus"></i> Restablecer Zoom</button>
+          <button class="btn btn-primary btn-sm" onclick="cargarGrafoConocimiento()"><i class="fas fa-bolt"></i> Actualizar Grafo</button>
+        </div>
+      </div>
+
+      <!-- Canvas Interactivo Vis.js / Graphify -->
+      <div id="graphifyCanvas" style="width:100%;height:580px;background:#090d16;border-radius:12px;border:1.5px solid var(--border-medium);position:relative;overflow:hidden"></div>
+
+      <!-- Leyenda del Grafo -->
+      <div style="display:flex;gap:18px;margin-top:16px;flex-wrap:wrap;justify-content:center;font-size:0.8rem;font-weight:700">
+        <span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:50%;background:#f59e0b;display:inline-block"></span> Hub Central Coraza</span>
+        <span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:50%;background:#0284c7;display:inline-block"></span> Departamentos</span>
+        <span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:50%;background:#8b5cf6;display:inline-block"></span> TRD Norma AGN</span>
+        <span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:50%;background:#10b981;display:inline-block"></span> Estantes Voxelsera</span>
+        <span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:50%;background:#ec4899;display:inline-block"></span> Documentos</span>
+      </div>
     </div>
   </div>
 
