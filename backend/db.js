@@ -130,6 +130,21 @@ async function query(text, params) {
     return { rows: getJsonData('contratos') };
   }
 
+  if (upperText.includes('FROM CONTRATOS')) {
+    let data = getJsonData('contratos');
+    // Filtros simples
+    if (params && params.length > 0) {
+      const q = String(params[0]).toLowerCase();
+      data = data.filter(r =>
+        String(r.parte_b || '').toLowerCase().includes(q) ||
+        String(r.nit || '').toLowerCase().includes(q) ||
+        String(r.numero_contrato || '').toLowerCase().includes(q) ||
+        String(r.tipo_contrato || '').toLowerCase().includes(q)
+      );
+    }
+    return { rows: data };
+  }
+
   if (upperText.startsWith('INSERT INTO CORRESPONDENCIA')) {
     const data = getJsonData('correspondencia');
     data.push({

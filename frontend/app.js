@@ -1981,6 +1981,7 @@ function renderContratos(lista) {
         <td>
           <div style="font-weight:700">${c.parte_a || 'CORAZA SEGURIDAD CTA'}</div>
           <small style="color:var(--text-secondary);font-weight:600"><i class="fas fa-handshake"></i> ${c.parte_b || 'N/A'}</small>
+          ${c.nit ? `<div style="font-size:0.75rem;color:var(--accent-primary);font-weight:700">NIT: ${c.nit}</div>` : ''}
         </td>
         <td>
           <div style="font-size:0.82rem;font-weight:600">${fIni}</div>
@@ -2013,9 +2014,10 @@ function filtrarContratos() {
     const doc = String(c.numero_contrato || c.id || '').toLowerCase();
     const pA = String(c.parte_a || '').toLowerCase();
     const pB = String(c.parte_b || '').toLowerCase();
+    const nit = String(c.nit || '').toLowerCase();
     const obj = String(c.objeto_contrato || '').toLowerCase();
 
-    return num.includes(query) || doc.includes(query) || pA.includes(query) || pB.includes(query) || obj.includes(query);
+    return num.includes(query) || doc.includes(query) || pA.includes(query) || pB.includes(query) || nit.includes(query) || obj.includes(query);
   });
 
   renderContratos(filtrados);

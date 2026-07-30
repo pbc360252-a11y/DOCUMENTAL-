@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Grafo de Conocimiento — SGD Coraza v7.4</title>
+  <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #060b14;
+      color: #e2e8f0;
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* HEADER */
+    .header {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      padding: 16px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .header-title {
+      font-size: 1.2rem;
+      font-weight: 800;
+      color: #f59e0b;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .header-title svg { width: 22px; height: 22px; }
+    .badge {
+      background: rgba(2,132,199,0.2);
+      border: 1px solid rgba(2,132,199,0.4);
+      color: #38bdf8;
+      font-size: 0.78rem;
+      font-weight: 700;
+      padding: 4px 12px;
+      border-radius: 999px;
+    }
+
+    /* TOOLBAR */
+    .toolbar {
+      background: rgba(15,23,42,0.95);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      padding: 10px 28px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .toolbar label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #64748b;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    .toolbar select {
+      background: #1e293b;
+      border: 1px solid rgba(255,255,255,0.1);
+      color: #e2e8f0;
+      font-size: 0.82rem;
+      font-family: 'Inter', sans-serif;
+      padding: 6px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      min-width: 220px;
+    }
+    .toolbar select:focus { outline: none; border-color: #0284c7; }
+    .sep { flex: 1; }
+    .btn {
+      padding: 7px 14px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      border: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all .15s;
+    }
+    .btn-ghost {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: #94a3b8;
+    }
+    .btn-ghost:hover { background: rgba(255,255,255,0.1); color: #e2e8f0; }
+    .btn-primary { background: #0284c7; color: #fff; }
+    .btn-primary:hover { background: #0369a1; }
+
+    /* CANVAS */
+    #canvas-wrap {
+      flex: 1;
+      position: relative;
+    }
+    #grafoCanvas {
+      width: 100%;
+      height: calc(100vh - 130px);
+      display: block;
+      background: #060b14;
+    }
+
+    /* LEGEND */
+    .legend {
+      background: rgba(15,23,42,0.98);
+      border-top: 1px solid rgba(255,255,255,0.06);
+      padding: 10px 28px;
+      display: flex;
+      align-items: center;
+      gap: 22px;
+      flex-wrap: wrap;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #64748b;
+    }
+    .legend-item { display: flex; align-items: center; gap: 7px; }
+    .dot {
+      width: 13px; height: 13px;
+      border-radius: 50%;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+    .box { width: 13px; height: 13px; border-radius: 3px; display: inline-block; flex-shrink: 0; }
+    .diamond {
+      width: 11px; height: 11px;
+      transform: rotate(45deg);
+      display: inline-block;
+      flex-shrink: 0;
+    }
+
+    /* INFO PANEL */
+    #infoPanel {
+      display: none;
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: rgba(15,23,42,0.97);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 14px;
+      padding: 18px 22px;
+      min-width: 240px;
+      max-width: 300px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+      z-index: 10;
+    }
+    #infoPanel h3 { font-size: 0.95rem; font-weight: 800; color: #f59e0b; margin-bottom: 10px; }
+    #infoPanel p { font-size: 0.8rem; color: #94a3b8; line-height: 1.6; }
+    #infoPanel .close-btn {
+      position: absolute; top: 10px; right: 12px;
+      background: none; border: none; color: #64748b;
+      font-size: 1.1rem; cursor: pointer;
+    }
+    #infoPanel .close-btn:hover { color: #e2e8f0; }
+
+    /* STATS */
+    .stats {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .stats span { font-size: 0.75rem; color: #475569; }
+    .stats strong { color: #38bdf8; }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2">
+        <circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/>
+        <line x1="12" y1="7" x2="5" y2="17"/><line x1="12" y1="7" x2="19" y2="17"/>
+        <line x1="5" y1="19" x2="19" y2="19"/>
+      </svg>
+      Grafo de Conocimiento Institucional — SGD Coraza v7.4
+    </div>
+    <div class="stats">
+      <span id="statNodes">Cargando...</span>
+    </div>
+  </div>
+
+  <!-- TOOLBAR -->
+  <div class="toolbar">
+    <label>FILTRAR NODOS:</label>
+    <select id="filtroTipo" onchange="filtrarNodos()">
+      <option value="TODOS">🌐 Todos los nodos</option>
+      <option value="DEPARTAMENTO">🏢 Departamentos (12)</option>
+      <option value="TRD">📑 Series TRD — Norma AGN</option>
+      <option value="VOXELSERA">📦 Estanterías Voxelsera</option>
+      <option value="DOCUMENTO">📁 Biblioteca Documental</option>
+    </select>
+    <div class="sep"></div>
+    <button class="btn btn-ghost" onclick="network.stabilize()">⟳ Estabilizar</button>
+    <button class="btn btn-ghost" onclick="network.fit({animation:{duration:600}})">⊡ Zoom Fit</button>
+    <button class="btn btn-primary" onclick="construirGrafo()">⚡ Recargar</button>
+  </div>
+
+  <!-- CANVAS -->
+  <div id="canvas-wrap">
+    <div id="grafoCanvas"></div>
+
+    <!-- INFO PANEL al clic -->
+    <div id="infoPanel">
+      <button class="close-btn" onclick="document.getElementById('infoPanel').style.display='none'">✕</button>
+      <h3 id="infoPanelTitle">Nodo</h3>
+      <p id="infoPanelBody"></p>
+    </div>
+  </div>
+
+  <!-- LEGEND -->
+  <div class="legend">
+    <div class="legend-item"><span class="dot" style="background:#f59e0b;"></span> Hub Central</div>
+    <div class="legend-item"><span class="box" style="background:#0284c7;"></span> Departamentos</div>
+    <div class="legend-item"><span class="dot" style="background:#8b5cf6;"></span> Series TRD (AGN)</div>
+    <div class="legend-item"><span class="dot" style="background:#10b981;"></span> Estanterías Voxelsera</div>
+    <div class="legend-item"><span class="diamond" style="background:#ec4899;"></span> Biblioteca Documental</div>
+    <div class="sep"></div>
+    <span style="font-size:0.7rem;">💡 Haz clic en cualquier nodo para ver detalles · Arrastra para mover · Scroll para zoom</span>
+  </div>
+
+<script>
+let network, allNodes = [], allEdges = [];
+
+const INFO_MAP = {
+  HUB: 'Sistema central SGD Coraza v7.4. Gestiona todos los módulos documentales de la cooperativa de vigilancia.',
+  DEPARTAMENTO: 'Unidad organizacional corporativa con series TRD propias bajo la Norma AGN.',
+  TRD: 'Serie o subserie documental según la Tabla de Retención Documental — Norma AGN (Archivo General de la Nación).',
+  VOXELSERA: 'Estantería física de archivo Voxelsera. Custodia documentos impresos organizados por sección.',
+  DOCUMENTO: 'Carpeta o archivo almacenado en la Biblioteca Documental Digital del SGD.',
+};
+
+function construirGrafo() {
+  const nodes = [];
+  const edges = [];
+
+  // 1. HUB CENTRAL
+  nodes.push({
+    id: 'HUB', label: 'CORAZA SEGURIDAD\nC.T.A. · SGD v7.4',
+    shape: 'ellipse', size: 42,
+    color: { background: '#f59e0b', border: '#d97706', highlight: { background: '#fbbf24', border: '#f59e0b' } },
+    font: { color: '#fff', size: 14, bold: true, face: 'Inter' },
+    shadow: { enabled: true, color: 'rgba(245,158,11,0.7)', size: 25, x: 0, y: 0 },
+    typeGroup: 'HUB', info: INFO_MAP.HUB
+  });
+
+  // 2. DEPARTAMENTOS
+  const deptos = [
+    { sigla:'GE', nombre:'Gerencia General',   color:'#0284c7' },
+    { sigla:'GH', nombre:'Gestión Humana',      color:'#0284c7' },
+    { sigla:'ST', nombre:'SG-SST',              color:'#0284c7' },
+    { sigla:'GF', nombre:'Financiera',          color:'#0284c7' },
+    { sigla:'CP', nombre:'Compras',             color:'#0284c7' },
+    { sigla:'CM', nombre:'Comercial',           color:'#0284c7' },
+    { sigla:'OP', nombre:'Operaciones',         color:'#0284c7' },
+    { sigla:'SE', nombre:'Seg. Electrónica',    color:'#0284c7' },
+    { sigla:'SP', nombre:'Supervisión',         color:'#0284c7' },
+    { sigla:'DJ', nombre:'Jurídico',            color:'#0284c7' },
+    { sigla:'CE', nombre:'Cliente Externo',     color:'#0369a1' },
+    { sigla:'AS', nombre:'Asociados CTA',       color:'#0369a1' },
+  ];
+
+  deptos.forEach(d => {
+    const id = `D_${d.sigla}`;
+    nodes.push({
+      id, label: `${d.sigla}\n${d.nombre}`,
+      shape: 'box',
+      color: { background: d.color, border: '#0369a1', highlight: { background: '#38bdf8', border: '#0284c7' } },
+      font: { color: '#fff', size: 11, face: 'Inter' },
+      shadow: { enabled: true, color: 'rgba(2,132,199,0.35)', size: 10, x: 0, y: 0 },
+      typeGroup: 'DEPARTAMENTO', info: `${INFO_MAP.DEPARTAMENTO}\n\nSigla: ${d.sigla}\nNombre: ${d.nombre}`
+    });
+    edges.push({ from:'HUB', to: id, color:{ color:'rgba(2,132,199,0.45)', highlight:'#38bdf8' }, width:2, length:200 });
+  });
+
+  // 3. SERIES TRD (2 por depto)
+  const trdMap = {
+    GE: [['100-10.01','Actas de Junta'],        ['100-10.02','Resoluciones GE']],
+    GH: [['200-20.01','Historias Laborales'],   ['200-20.02','Nómina y Pagos']],
+    ST: [['210-21.01','SG-SST General'],        ['210-21.02','Exámenes Médicos']],
+    GF: [['300-30.01','Comprobantes'],          ['300-30.02','Presupuesto']],
+    CP: [['310-31.01','Órdenes de Compra'],     ['310-31.02','Proveedores']],
+    CM: [['320-32.01','Propuestas Comerciales'],['320-32.02','Contratos Clientes']],
+    OP: [['400-40.01','Minutas de Puesto'],     ['400-40.02','Informes Operativos']],
+    SE: [['410-41.01','Seg. Electrónica'],      ['410-41.02','Mantenimiento']],
+    SP: [['420-42.01','Supervisión Diaria'],    ['420-42.02','Turnos y Novedades']],
+    DJ: [['500-50.01','Contratos Vigentes'],    ['500-50.02','Poderes y Escrituras']],
+    CE: [['900-90.01','Contratos Clientes'],    ['900-90.02','Correspondencia CE']],
+    AS: [['910-91.01','Actas CTA'],             ['910-91.02','Asociados Retirados']],
+  };
+
+  Object.entries(trdMap).forEach(([sigla, series]) => {
+    series.forEach(([codigo, nombre], i) => {
+      const id = `TRD_${sigla}_${i}`;
+      nodes.push({
+        id, label: `${codigo}\n${nombre}`,
+        shape: 'dot', size: 14,
+        color: { background:'#8b5cf6', border:'#7c3aed', highlight:{ background:'#a78bfa', border:'#8b5cf6' } },
+        font: { color:'#ddd6fe', size: 9, face:'Inter' },
+        typeGroup: 'TRD', info: `${INFO_MAP.TRD}\n\nCódigo: ${codigo}\nSerie: ${nombre}\nDepto: ${sigla}`
+      });
+      edges.push({ from:`D_${sigla}`, to:id, color:{ color:'rgba(139,92,246,0.5)' }, dashes:true, width:1.2 });
+    });
+  });
+
+  // 4. VOXELSERA
+  const voxels = [
+    { id:'VOX_A', label:'📋 Estante A\nMinutas de Puesto',         depto:'OP', count:'Sección A1–A9' },
+    { id:'VOX_B', label:'🤝 Estante B\nAsociados Retirados',       depto:'GH', count:'3,835 carpetas' },
+    { id:'VOX_C', label:'📑 Estante C\nContratos (#1–#394)',        depto:'DJ', count:'374 contratos' },
+    { id:'VOX_D', label:'📧 Estante D\nCorrespondencia',            depto:'GE', count:'Sección D1–D9' },
+  ];
+  voxels.forEach(v => {
+    nodes.push({
+      id: v.id, label: v.label,
+      shape:'database',
+      color:{ background:'#10b981', border:'#059669', highlight:{ background:'#34d399', border:'#10b981' } },
+      font:{ color:'#fff', size:10, face:'Inter' },
+      shadow:{ enabled:true, color:'rgba(16,185,129,0.4)', size:10, x:0, y:0 },
+      typeGroup:'VOXELSERA', info:`${INFO_MAP.VOXELSERA}\n\nUbicación: ${v.label.replace(/\n/,' - ')}\nDepto vinculado: ${v.depto}\nContenido: ${v.count}`
+    });
+    edges.push({ from:`D_${v.depto}`, to:v.id, color:{ color:'rgba(16,185,129,0.6)' }, width:2.5 });
+  });
+
+  // 5. BIBLIOTECA DOCUMENTAL
+  const bibCarpetas = [
+    { id:'BIB_POL', nombre:'Políticas Institucionales' },
+    { id:'BIB_MAN', nombre:'Manuales Operativos' },
+    { id:'BIB_SST', nombre:'Reglamento SG-SST' },
+    { id:'BIB_JUR', nombre:'Formatos Jurídicos' },
+    { id:'BIB_COM', nombre:'Plantillas Comerciales' },
+    { id:'BIB_FIN', nombre:'Informes Financieros' },
+  ];
+  bibCarpetas.forEach(c => {
+    nodes.push({
+      id: c.id, label: `📁 ${c.nombre}`,
+      shape:'diamond', size:14,
+      color:{ background:'#ec4899', border:'#db2777', highlight:{ background:'#f472b6', border:'#ec4899' } },
+      font:{ color:'#fce7f3', size:9 },
+      typeGroup:'DOCUMENTO', info:`${INFO_MAP.DOCUMENTO}\n\nCarpeta: ${c.nombre}`
+    });
+    edges.push({ from:'D_GE', to:c.id, color:{ color:'rgba(236,72,153,0.4)' }, dashes:true });
+  });
+
+  allNodes = nodes;
+  allEdges = edges;
+
+  // Actualizar stats
+  document.getElementById('statNodes').innerHTML =
+    `<strong>${nodes.length}</strong> nodos &nbsp;·&nbsp; <strong>${edges.length}</strong> conexiones`;
+
+  renderGrafo(nodes, edges);
+}
+
+function renderGrafo(nodes, edges) {
+  const container = document.getElementById('grafoCanvas');
+  const data = {
+    nodes: new vis.DataSet(nodes),
+    edges: new vis.DataSet(edges)
+  };
+  const options = {
+    nodes: { borderWidth: 2, shadow: true },
+    edges: {
+      width: 1.5,
+      smooth: { type: 'curvedCW', roundness: 0.15 },
+      arrows: { to: { enabled: true, scaleFactor: 0.5 } }
+    },
+    physics: {
+      barnesHut: {
+        gravitationalConstant: -5000,
+        centralGravity: 0.35,
+        springLength: 140,
+        springConstant: 0.04,
+        damping: 0.12
+      },
+      stabilization: { iterations: 250, updateInterval: 20 }
+    },
+    interaction: {
+      hover: true,
+      tooltipDelay: 100,
+      zoomView: true,
+      dragNodes: true,
+      navigationButtons: true,
+      keyboard: true
+    }
+  };
+
+  if (network) { network.destroy(); }
+  network = new vis.Network(container, data, options);
+
+  // Clic en nodo → panel info
+  network.on('click', function(params) {
+    if (params.nodes.length > 0) {
+      const n = allNodes.find(x => x.id === params.nodes[0]);
+      if (n) {
+        const panel = document.getElementById('infoPanel');
+        document.getElementById('infoPanelTitle').textContent = n.label.replace(/\n/g,' · ');
+        document.getElementById('infoPanelBody').innerHTML = n.info.replace(/\n/g,'<br>');
+        panel.style.display = 'block';
+      }
+    } else {
+      document.getElementById('infoPanel').style.display = 'none';
+    }
+  });
+
+  // Hover → cursor pointer
+  network.on('hoverNode', () => { container.style.cursor = 'pointer'; });
+  network.on('blurNode',  () => { container.style.cursor = 'default'; });
+}
+
+function filtrarNodos() {
+  const filtro = document.getElementById('filtroTipo').value;
+  let fNodes = filtro === 'TODOS'
+    ? allNodes
+    : allNodes.filter(n => n.typeGroup === 'HUB' || n.typeGroup === filtro);
+  const ids = new Set(fNodes.map(n => n.id));
+  const fEdges = allEdges.filter(e => ids.has(e.from) && ids.has(e.to));
+  network.setData({ nodes: new vis.DataSet(fNodes), edges: new vis.DataSet(fEdges) });
+}
+
+// Iniciar al cargar
+window.onload = () => construirGrafo();
+</script>
+</body>
+</html>

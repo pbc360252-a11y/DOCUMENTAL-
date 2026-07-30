@@ -10,7 +10,6 @@
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
 </head>
 <body>
 
@@ -73,7 +72,6 @@
     <button class="nav-item" onclick="showSection('biblioteca')"><i class="fas fa-book-open"></i>Biblioteca</button>
     <button class="nav-item" onclick="showSection('prestamos')"><i class="fas fa-exchange-alt"></i>Préstamos</button>
     <div class="nav-label">Herramientas</div>
-    <button class="nav-item" onclick="showSection('grafo')"><i class="fas fa-project-diagram"></i>Grafo de Conocimiento</button>
     <button class="nav-item" onclick="showSection('busqueda')"><i class="fas fa-search"></i>Buscador Universal</button>
     <button class="nav-item" onclick="showSection('informes')"><i class="fas fa-chart-bar"></i>Informes</button>
     <div class="nav-label">Sistema</div>
@@ -540,47 +538,6 @@
     <div id="infVacio" style="text-align:center;padding:60px;color:var(--text-muted)">
       <i class="fas fa-chart-bar" style="font-size:3.5rem;opacity:.15"></i>
       <div style="margin-top:14px">Configure y genere su informe</div>
-    </div>
-  </div>
-
-  <!-- GRAFO DE CONOCIMIENTO INTERACTIVO -->
-  <div id="grafo" class="section">
-    <div class="card" style="border:1px solid var(--border-medium);background:var(--bg-card);box-shadow:0 10px 30px rgba(0,0,0,0.3);">
-      <div class="card-header" style="border-bottom:1px solid var(--border-subtle);padding-bottom:14px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
-        <span class="card-title" style="font-size:1.3rem;font-weight:800;color:var(--accent-primary);"><i class="fas fa-project-diagram"></i>&nbsp;Grafo de Conocimiento Institucional — SGD Coraza</span>
-        <span class="badge badge-info" id="badgeGrafoNodes" style="font-size:0.85rem;padding:6px 14px;">Cargando red...</span>
-      </div>
-
-      <!-- Controles -->
-      <div style="background:var(--bg-elevated);border:1.5px solid var(--border-medium);border-radius:var(--r-lg);padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-          <label style="font-size:0.78rem;font-weight:700;color:var(--text-secondary);letter-spacing:.05em;">FILTRAR NODOS:</label>
-          <select id="filtroGrafoTipo" class="inp" style="width:auto;min-width:210px;font-size:0.85rem;" onchange="filtrarNodosGrafo()">
-            <option value="TODOS">🌐 Todos los nodos</option>
-            <option value="DEPARTAMENTO">🏢 Departamentos (12)</option>
-            <option value="TRD">📑 Series TRD — Norma AGN</option>
-            <option value="VOXELSERA">📦 Estanterías Voxelsera</option>
-            <option value="DOCUMENTO">📄 Biblioteca Documental</option>
-          </select>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <button class="btn btn-ghost btn-sm" onclick="estabilizarGrafo()"><i class="fas fa-sync-alt"></i> Estabilizar</button>
-          <button class="btn btn-ghost btn-sm" onclick="reiniciarZoomGrafo()"><i class="fas fa-compress-arrows-alt"></i> Zoom Fit</button>
-          <button class="btn btn-primary btn-sm" onclick="cargarGrafoConocimiento()"><i class="fas fa-bolt"></i> Actualizar</button>
-        </div>
-      </div>
-
-      <!-- Canvas Vis.js -->
-      <div id="graphifyCanvas" style="width:100%;height:600px;background:#060b14;border-radius:14px;border:1.5px solid var(--border-medium);position:relative;overflow:hidden;"></div>
-
-      <!-- Leyenda -->
-      <div style="display:flex;gap:20px;margin-top:14px;flex-wrap:wrap;justify-content:center;font-size:0.78rem;font-weight:700;color:var(--text-secondary);">
-        <span style="display:flex;align-items:center;gap:6px;"><span style="width:13px;height:13px;border-radius:50%;background:#f59e0b;display:inline-block;"></span>Hub Central</span>
-        <span style="display:flex;align-items:center;gap:6px;"><span style="width:13px;height:13px;border-radius:4px;background:#0284c7;display:inline-block;"></span>Departamentos</span>
-        <span style="display:flex;align-items:center;gap:6px;"><span style="width:13px;height:13px;border-radius:50%;background:#8b5cf6;display:inline-block;"></span>TRD Norma AGN</span>
-        <span style="display:flex;align-items:center;gap:6px;"><span style="width:13px;height:13px;border-radius:50%;background:#10b981;display:inline-block;"></span>Voxelsera</span>
-        <span style="display:flex;align-items:center;gap:6px;"><span style="width:13px;height:13px;transform:rotate(45deg);background:#ec4899;display:inline-block;"></span>Biblioteca</span>
-      </div>
     </div>
   </div>
 
