@@ -2806,8 +2806,8 @@ function renderContratos(lista) {
 }
 
 function imprimirRotuloDirecto(modulo, id) {
+  // Buscar en cache local primero
   let item = null;
-
   if (modulo === 'CONTRATOS' && window.todosLosContratos) {
     item = window.todosLosContratos.find(c => String(c.id) === String(id));
   } else if (modulo === 'MINUTAS' && window.todasLasMinutas) {
@@ -2816,31 +2816,93 @@ function imprimirRotuloDirecto(modulo, id) {
     item = window.todoElPersonal.find(p => String(p.id) === String(id));
   }
 
-  if (!item) {
-    apiCall(`/api/registro-detalle/${encodeURIComponent(modulo)}/${encodeURIComponent(id)}`).then(res => {
-      if (res.success && res.detalle) {
-        const d = res.detalle;
-        const slotFisico = d.voxelsera || d.ubicacion || 'ESTANTE C';
-        const codigo = d.codigo_numerico || d.numero_contrato || d.codigo_unico || d.id;
-        const titulo = d.parte_b || d.nombre_puesto || d.nombre_completo || d.asunto || d.nombre || 'CARPETA ARCHIVO';
-        const nit = d.nit || d.cedula || '';
-        const numContrato = d.numero_contrato || '';
-        const fechas = d.fecha_inicio ? `${String(d.fecha_inicio).substring(0,10)} -- ${d.fecha_fin ? String(d.fecha_fin).substring(0,10) : 'Vigente'}` : '';
+  if (item) {
+    _construirEImprimirRotulo(item, modulo);
+  } else {
+    // Fallback: buscar en API
+    apiCall(`/api/registro-detalle/${encodeURIComponent(modulo)}/${encodeURIComponent(id)}`)
+      .then(res => {
+        if (res && res.success && res.detalle) {
+          _construirEImprimirRotulo(res.detalle, modulo);
+        } else {
+          Swal.fire('Error', 'No se pudo obtener los datos de la carpeta.', 'error');
+        }
+      }).catch(() => {
+        Swal.fire('Error', 'Error de conexión al intentar obtener los datos del rótulo.', 'error');
+      });
+  }
+}
 
-        generarEtiquetaQR(d.id, modulo, codigo, titulo, slotFisico, nit, numContrato, fechas);
-      }
-    });
-    return;
+function _construirEImprimirRotulo(d, modulo) {
+  const codClean = String(d.codigo_numerico || d.numero_contrato || d.codigo_unico || d.id || 'S/N').replace(/^#/, '');
+  const titulo = (d.parte_b || d.nombre_puesto || d.nombre_completo || d.asunto || d.nombre || 'CARPETA ARCHIVO').toUpperCase();
+  const nit = d.nit || d.cedula || 'N/A';
+  const numContrato = d.numero_contrato || '';
+  const slot = d.voxelsera || d.ubicacion || 'C';
+  const slotLabel = slot.startsWith('VOXEL_') ? slot.replace('VOXEL_', '') : slot;
+  const fecIni = d.fecha_inicio ? String(d.fecha_inicio).substring(0, 10) : '';
+  const fecFin = d.fecha_fin ? String(d.fecha_fin).substring(0, 10) : 'Vigente';
+  const fechas = fecIni ? `${fecIni} → ${fecFin}` : 'S/F';
+  const esMinuta = (modulo || '').toUpperCase().includes('MINUTA');
+  const modLabel = (modulo || 'CUSTODIA DOCUMENTAL').toUpperCase();
+
+  let html = '';
+
+  if (esMinuta) {
+    // TIRA VERTICAL (Libro de Minutas) — 3.5cm × 10.5cm
+    html = `
+      <div style="width:132px;min-height:397px;padding:10px 8px;border:3px solid #0f172a;border-radius:6px;
+                  background:#ffffff;display:flex;flex-direction:column;justify-content:space-between;
+                  align-items:center;text-align:center;font-family:system-ui,sans-serif;color:#000">
+        <div style="width:100%;border-bottom:2px solid #0284c7;padding-bottom:5px">
+          <div style="font-size:0.55rem;font-weight:900;color:#0284c7;letter-spacing:1px">CORAZA C.T.A.</div>
+          <div style="font-size:2rem;font-weight:900;color:#0f172a">#${codClean}</div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:5px;padding:8px 0">
+          <div style="font-size:0.72rem;font-weight:900;text-transform:uppercase;line-height:1.3">${titulo}</div>
+          <div style="font-size:0.6rem;font-weight:700;color:#475569">${nit ? 'NIT/CC: ' + nit : ''}</div>
+          <div style="font-size:0.6rem;font-weight:700;color:#64748b">${fechas}</div>
+        </div>
+        <div style="width:100%;border-top:2px solid #0284c7;padding-top:5px">
+          <div style="font-size:0.58rem;font-weight:800;color:#0284c7">MINUTAS · EST. ${slotLabel}</div>
+          <div style="font-size:0.5rem;font-weight:700;color:#94a3b8">SGD CORAZA v8.5</div>
+        </div>
+      </div>`;
+  } else {
+    // TIRA HORIZONTAL (Carpeta Legajadora Azul) — 9.5cm × 4.2cm
+    html = `
+      <div style="width:360px;height:158px;padding:12px;border:3px solid #0f172a;border-radius:6px;
+                  background:#ffffff;display:flex;justify-content:space-between;align-items:stretch;
+                  font-family:system-ui,sans-serif;color:#000;gap:10px">
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:space-between;border:1.5px solid #cbd5e1;border-radius:4px;padding:8px">
+          <div style="font-size:0.62rem;font-weight:900;color:#0284c7;text-transform:uppercase">${modLabel} · ESTANTE ${slotLabel}</div>
+          <div style="font-size:0.9rem;font-weight:900;text-transform:uppercase;line-height:1.25;color:#0f172a">${titulo}</div>
+          <div>
+            <div style="font-size:0.65rem;font-weight:700;color:#334155">${nit ? 'NIT/CC: ' + nit : ''} ${numContrato ? ' | Cto. N°: ' + numContrato : ''}</div>
+            <div style="font-size:0.62rem;font-weight:700;color:#64748b">${fechas}</div>
+          </div>
+        </div>
+        <div style="width:72px;border:2.5px solid #0284c7;border-radius:6px;background:#eff6ff;
+                    display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center">
+          <div style="font-size:0.48rem;font-weight:900;color:#0284c7;letter-spacing:0.5px">CÓDIGO</div>
+          <div style="font-size:1.8rem;font-weight:900;color:#0284c7;line-height:1">${codClean}</div>
+          <div style="font-size:0.45rem;font-weight:700;color:#94a3b8;margin-top:2px">CORAZA CTA</div>
+        </div>
+      </div>`;
   }
 
-  const slotFisico = item.voxelsera || item.ubicacion || 'ESTANTE C';
-  const codigo = item.codigo_numerico || item.numero_contrato || item.codigo_unico || item.id;
-  const titulo = item.parte_b || item.nombre_puesto || item.nombre_completo || item.nombre || item.asunto || 'CARPETA ARCHIVO';
-  const nit = item.nit || item.cedula || '';
-  const numContrato = item.numero_contrato || '';
-  const fechas = item.fecha_inicio ? `${String(item.fecha_inicio).substring(0,10)} -- ${item.fecha_fin ? String(item.fecha_fin).substring(0,10) : 'Vigente'}` : '';
+  const printHtml = `
+    <div style="padding:20px;background:#f8fafc;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:16px">
+      <div style="font-family:system-ui,sans-serif;font-size:0.8rem;font-weight:700;color:#475569;
+                  border-bottom:2px solid #0284c7;padding-bottom:6px;margin-bottom:6px;width:100%;max-width:500px;text-align:center">
+        ✂️ CORAZA SEGURIDAD C.T.A. — RÓTULO OFICIAL DE CARPETA<br>
+        <span style="font-size:0.65rem;font-weight:600;color:#94a3b8">Recorte y pegue en la carpeta física</span>
+      </div>
+      ${html}
+    </div>
+  `;
 
-  generarEtiquetaQR(item.id, modulo, codigo, titulo, slotFisico, nit, numContrato, fechas);
+  imprimirAreaElemento(printHtml, `Rótulo Carpeta #${codClean} - ${titulo}`);
 }
 
 function filtrarContratos() {
