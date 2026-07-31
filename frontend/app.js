@@ -1031,14 +1031,17 @@ async function mostrarDetalleRegistro(id, modulo) {
         }
       }
 
+      window.currentDetailRecord = d;
+      window.currentDetailModulo = modulo;
+
       const fichaBtn = `
-        <button class="btn btn-primary w-full" style="margin-top:8px;padding:9px;font-weight:800;background:linear-gradient(135deg,#0284c7,#16a34a);border:none;color:#fff" onclick="generarFichaCustodia('${d.id}', '${modulo}', '${d.codigo_numerico || d.numero_contrato || d.codigo_unico || d.id}', '${(d.parte_b || d.nombre_puesto || d.nombre_completo || d.asunto || '').replace(/'/g, "\\'")}', '${d.nit || d.cedula || 'N/A'}', '${d.numero_contrato || 'N/A'}', '${slotFisico || 'ESTANTE C'}', '${d.fecha_inicio ? String(d.fecha_inicio).substring(0,10) + ' -- ' + (d.fecha_fin ? String(d.fecha_fin).substring(0,10) : 'Vigente') : 'N/A'}')">
+        <button class="btn btn-primary w-full" style="margin-top:8px;padding:9px;font-weight:800;background:linear-gradient(135deg,#0284c7,#16a34a);border:none;color:#fff" onclick="generarFichaCustodiaDesdeDetalle()">
           📄 GENERAR FICHA DE CUSTODIA (HOJA DE CONTROL PDF)
         </button>
       `;
 
       const pdfAttachBtn = d.url_pdf ? `
-        <button class="btn btn-ghost w-full" style="margin-top:6px;padding:8px;font-weight:700;color:var(--accent-green);border-color:var(--accent-green)" onclick="abrirVisorPDF('${d.url_pdf}', '${(d.parte_b || d.nombre_puesto || d.id).replace(/'/g, "\\'")}')">
+        <button class="btn btn-ghost w-full" style="margin-top:6px;padding:8px;font-weight:700;color:var(--accent-green);border-color:var(--accent-green)" onclick="abrirVisorPDF('${d.url_pdf}', 'EXPEDIENTE DIGITAL')">
           👁️ VER PDF ESCANEADO VINCULADO
         </button>
       ` : `
@@ -1048,7 +1051,7 @@ async function mostrarDetalleRegistro(id, modulo) {
       `;
 
       const qrBtn = `
-        <button class="btn btn-ghost w-full" style="margin-top:6px;padding:8px;font-weight:700;border-color:var(--accent-primary);color:var(--accent-primary)" onclick="generarEtiquetaQR('${d.id}', '${modulo}', '${d.codigo_numerico || d.numero_contrato || d.codigo_unico || d.id}', '${(d.parte_b || d.nombre_puesto || d.nombre_completo || d.asunto || '').replace(/'/g, "\\'")}', '${slotFisico}', '${d.nit || d.cedula || ''}', '${d.numero_contrato || ''}', '${d.fecha_inicio ? String(d.fecha_inicio).substring(0,10) + ' -- ' + (d.fecha_fin ? String(d.fecha_fin).substring(0,10) : 'Indefinido') : ''}')">
+        <button class="btn btn-ghost w-full" style="margin-top:6px;padding:8px;font-weight:700;border-color:var(--accent-primary);color:var(--accent-primary)" onclick="generarEtiquetaDesdeDetalle()">
           🖨️ GENERAR TIRA PARA LOMO DE CARPETA (CORTAR Y PEGAR)
         </button>
       `;
@@ -1599,6 +1602,36 @@ function imprimirHojaPdfCola() {
 // ==========================================
 // FUNCIONES FICHA DE CUSTODIA Y PDF VINCULADO
 // ==========================================
+
+function generarEtiquetaDesdeDetalle() {
+  const d = window.currentDetailRecord;
+  const modulo = window.currentDetailModulo || 'CUSTODIA DOCUMENTAL';
+  if (!d) return;
+
+  const slotFisico = d.voxelsera || d.ubicacion || 'ESTANTE C';
+  const codigo = d.codigo_numerico || d.numero_contrato || d.codigo_unico || d.id;
+  const titulo = d.parte_b || d.nombre_puesto || d.nombre_completo || d.asunto || d.nombre || 'CARPETA ARCHIVO';
+  const nit = d.nit || d.cedula || '';
+  const numContrato = d.numero_contrato || '';
+  const fechas = d.fecha_inicio ? `${String(d.fecha_inicio).substring(0,10)} -- ${d.fecha_fin ? String(d.fecha_fin).substring(0,10) : 'Vigente'}` : '';
+
+  generarEtiquetaQR(d.id, modulo, codigo, titulo, slotFisico, nit, numContrato, fechas);
+}
+
+function generarFichaCustodiaDesdeDetalle() {
+  const d = window.currentDetailRecord;
+  const modulo = window.currentDetailModulo || 'CUSTODIA DOCUMENTAL';
+  if (!d) return;
+
+  const slotFisico = d.voxelsera || d.ubicacion || 'ESTANTE C';
+  const codigo = d.codigo_numerico || d.numero_contrato || d.codigo_unico || d.id;
+  const titular = d.parte_b || d.nombre_puesto || d.nombre_completo || d.asunto || d.nombre || 'CARPETA ARCHIVO';
+  const nit = d.nit || d.cedula || 'N/A';
+  const numContrato = d.numero_contrato || 'N/A';
+  const fechas = d.fecha_inicio ? `${String(d.fecha_inicio).substring(0,10)} -- ${d.fecha_fin ? String(d.fecha_fin).substring(0,10) : 'Vigente'}` : 'N/A';
+
+  generarFichaCustodia(d.id, modulo, codigo, titular, nit, numContrato, slotFisico, fechas);
+}
 
 function generarFichaCustodia(id, modulo, codigo, titular, nit, numContrato, slotFisico, fechas) {
   const modal = document.getElementById('modalFichaCustodia');
