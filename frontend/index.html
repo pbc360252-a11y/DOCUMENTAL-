@@ -917,6 +917,152 @@
   </div>
 </div>
 
-<script src="app.js?v=8.0.2" defer></script>
+<!-- MODAL FICHA DE CUSTODIA / HOJA DE CONTROL DE CARPETA (PDF AGN) -->
+<div class="modal-ov" id="modalFichaCustodia">
+  <div class="modal-box" style="max-width: 720px; max-height: 90vh; display: flex; flex-direction: column;">
+    <div class="modal-hdr" style="border-bottom: 1px solid var(--border-medium); padding-bottom: 10px;">
+      <span class="card-title" style="font-size: 1.1rem; color: var(--accent-primary);"><i class="fas fa-file-alt"></i> Ficha de Custodia y Hoja de Control de Carpeta (Norma AGN)</span>
+      <button class="topbar-btn" onclick="document.getElementById('modalFichaCustodia').classList.remove('show')"><i class="fas fa-times"></i></button>
+    </div>
+    
+    <div style="padding: 16px 0; overflow-y: auto; flex: 1; min-height: 0;" id="fichaCustodiaPrintArea">
+      <div style="border: 2px solid #0f172a; padding: 24px; background: #ffffff; color: #0f172a; border-radius: 8px; font-family: sans-serif;">
+        
+        <!-- ENCABEZADO OFICIAL -->
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px double #0f172a; padding-bottom: 12px; margin-bottom: 16px;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <img src="logo.png" style="height: 48px; object-fit: contain;" alt="Coraza Logo">
+            <div>
+              <div style="font-size: 1.1rem; font-weight: 900; color: #000; text-transform: uppercase;">CORAZA SEGURIDAD C.T.A.</div>
+              <div style="font-size: 0.75rem; font-weight: 700; color: #475569;">SISTEMA DE GESTIÓN DOCUMENTAL · HOJA DE CONTROL DE CARPETA</div>
+            </div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 1.6rem; font-weight: 900; color: #0284c7;" id="fcCodigo">#362</div>
+            <div style="font-size: 0.68rem; font-weight: 800; color: #64748b;" id="fcConsecutivo">CONSECUTIVO SQL: CTR-0362</div>
+          </div>
+        </div>
+
+        <!-- METADATOS PRINCIPALES DE LA CARPETA -->
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-bottom: 16px;">
+          <tr>
+            <td style="padding: 6px; border: 1px solid #cbd5e1; font-weight: 800; background: #f8fafc; width: 30%;">FONDO DOCUMENTAL:</td>
+            <td style="padding: 6px; border: 1px solid #cbd5e1; font-weight: 700;" id="fcFondo">CORAZA SEGURIDAD C.T.A.</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px; border: 1px solid #cbd5e1; font-weight: 800; background: #f8fafc;">TITULAR / ENTIDAD / CLIENTE:</td>
+            <td style="padding: 6px; border: 1px solid #cbd5e1; font-weight: 900; color: #0284c7;" id="fcTitular">CONJUNTO RESIDENCIAL TIERRA GRATA CUMBRES P.H.</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px; border: 1px solid #cbd5e1; font-weight: 800; background: #f8fafc;">IDENTIFICACIÓN (NIT / CC):</td>
+            <td style="padding: 6px; border: 1px solid #cbd5e1; font-weight: 800;" id="fcNit">900458819-6</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px; border: 1px solid #cbd5e1; font-weight: 800; background: #f8fafc;">N° DE CONTRATO / REGISTRO:</td>
+            <td style="padding: 6px; border: 1px solid #cbd5e1; font-weight: 700;" id="fcNumContrato">CONTRATO N° 25</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px; border: 1px solid #cbd5e1; font-weight: 800; background: #f8fafc;">UBICACIÓN FÍSICA (VOXELSERA):</td>
+            <td style="padding: 6px; border: 1px solid #cbd5e1; font-weight: 900; color: #16a34a;" id="fcUbicacion">ESTANTE C3 · COMPARTIMENTO CUSTODIA</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px; border: 1px solid #cbd5e1; font-weight: 800; background: #f8fafc;">CICLO DE VIDA TRD AGN:</td>
+            <td style="padding: 6px; border: 1px solid #cbd5e1; font-weight: 700;" id="fcCicloVida">ARCHIVO CENTRAL (Retención: 10 Años)</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px; border: 1px solid #cbd5e1; font-weight: 800; background: #f8fafc;">RANGO DE FECHAS:</td>
+            <td style="padding: 6px; border: 1px solid #cbd5e1; font-weight: 700;" id="fcFechas">01/12/2011 -- 01/12/2024</td>
+          </tr>
+        </table>
+
+        <!-- HISTORIAL DE DOCUMENTOS ANEXOS EN LA CARPETA -->
+        <div style="font-size: 0.85rem; font-weight: 800; color: #0f172a; margin-bottom: 8px; text-transform: uppercase;">📑 HOJA DE CONTROL Y FOLIACIÓN INTERNA</div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.78rem; margin-bottom: 20px;">
+          <thead>
+            <tr style="background: #e2e8f0; text-align: left;">
+              <th style="padding: 6px; border: 1px solid #cbd5e1;">FOLIO</th>
+              <th style="padding: 6px; border: 1px solid #cbd5e1;">DOCUMENTO / ASUNTO</th>
+              <th style="padding: 6px; border: 1px solid #cbd5e1;">FECHA</th>
+              <th style="padding: 6px; border: 1px solid #cbd5e1;">ESTADO</th>
+            </tr>
+          </thead>
+          <tbody id="fcTablaFolios">
+            <tr>
+              <td style="padding: 6px; border: 1px solid #cbd5e1; font-weight: 800;">001 - 045</td>
+              <td style="padding: 6px; border: 1px solid #cbd5e1;">Contrato Principal de Vigilancia Privada y Adiciones</td>
+              <td style="padding: 6px; border: 1px solid #cbd5e1;">2011-12-01</td>
+              <td style="padding: 6px; border: 1px solid #cbd5e1; color: #16a34a; font-weight: 800;">ARCHIVADO</td>
+            </tr>
+            <tr>
+              <td style="padding: 6px; border: 1px solid #cbd5e1; font-weight: 800;">046 - 062</td>
+              <td style="padding: 6px; border: 1px solid #cbd5e1;">Pólizas de Responsabilidad Civil y Garantía</td>
+              <td style="padding: 6px; border: 1px solid #cbd5e1;">2024-01-15</td>
+              <td style="padding: 6px; border: 1px solid #cbd5e1; color: #16a34a; font-weight: 800;">ARCHIVADO</td>
+            </tr>
+            <tr>
+              <td style="padding: 6px; border: 1px solid #cbd5e1; font-weight: 800;">063 - 078</td>
+              <td style="padding: 6px; border: 1px solid #cbd5e1;">Acta de Liquidación y Paz y Salvo Comercial</td>
+              <td style="padding: 6px; border: 1px solid #cbd5e1;">2024-12-01</td>
+              <td style="padding: 6px; border: 1px solid #cbd5e1; color: #0284c7; font-weight: 800;">FINALIZADO</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- FIRMAS DE AUDITORÍA Y CUSTODIA -->
+        <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 30px; padding-top: 15px; border-top: 2px dashed #94a3b8;">
+          <div style="text-align: center; width: 45%;">
+            <div style="border-bottom: 1px solid #000; height: 35px; margin-bottom: 4px;"></div>
+            <div style="font-size: 0.75rem; font-weight: 800;">ADMINISTRADOR DE ARCHIVO</div>
+            <div style="font-size: 0.65rem; color: #64748b;">Coraza Seguridad C.T.A.</div>
+          </div>
+          <div style="text-align: center; width: 45%;">
+            <div style="border-bottom: 1px solid #000; height: 35px; margin-bottom: 4px;"></div>
+            <div style="font-size: 0.75rem; font-weight: 800;">RESPONSABLE CUSTODIA / AUDITOR</div>
+            <div style="font-size: 0.65rem; color: #64748b;">Verificación TRD AGN</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 10px; border-top: 1px solid var(--border-medium); padding-top: 12px; margin-top: 6px;">
+      <button class="btn btn-primary" style="flex: 1; justify-content: center;" onclick="imprimirFichaCustodia()"><i class="fas fa-print"></i> IMPRIMIR FICHA DE CUSTODIA (PDF)</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('modalFichaCustodia').classList.remove('show')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL VINCULAR / SUBIR PDF ESCANEADO -->
+<div class="modal-ov" id="modalSubirPDF">
+  <div class="modal-box" style="max-width: 480px;">
+    <div class="modal-hdr" style="border-bottom: 1px solid var(--border-medium); padding-bottom: 10px;">
+      <span class="card-title" style="font-size: 1.1rem; color: var(--accent-primary);"><i class="fas fa-file-upload"></i> Adjuntar PDF Digitalizado a Carpeta</span>
+      <button class="topbar-btn" onclick="document.getElementById('modalSubirPDF').classList.remove('show')"><i class="fas fa-times"></i></button>
+    </div>
+    
+    <div style="padding: 16px 0;">
+      <div class="form-group" style="margin-bottom: 14px;">
+        <label style="font-size: 0.82rem; font-weight: 700;">Documento / Carpeta Objetivo:</label>
+        <input type="text" id="targetPdfCodigo" class="inp" readonly style="background: var(--bg-elevated); font-weight: 800; color: var(--accent-primary);">
+      </div>
+
+      <div class="form-group" style="margin-bottom: 16px;">
+        <label style="font-size: 0.82rem; font-weight: 700;">Enlace o URL del PDF Digitalizado (Google Drive / Nube / Local):</label>
+        <input type="url" id="targetPdfUrl" class="inp" placeholder="https://drive.google.com/... o URL del PDF" required>
+      </div>
+
+      <div style="font-size: 0.78rem; color: var(--text-secondary); background: var(--bg-elevated); padding: 10px; border-radius: 6px; border: 1px solid var(--border-subtle);">
+        💡 Al guardar, aparecerá el botón 📄 <strong>Ver PDF Escaneado</strong> en las tablas y en las búsquedas para visualizar el expediente digital en 1 clic.
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 10px; border-top: 1px solid var(--border-medium); padding-top: 12px;">
+      <button class="btn btn-success" style="flex: 1; justify-content: center;" onclick="guardarEnlacePDF()"><i class="fas fa-save"></i> GUARDAR Y VINCULAR PDF</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('modalSubirPDF').classList.remove('show')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js?v=8.5.0" defer></script>
 </body>
 </html>

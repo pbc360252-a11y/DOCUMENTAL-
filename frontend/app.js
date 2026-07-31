@@ -1031,8 +1031,24 @@ async function mostrarDetalleRegistro(id, modulo) {
         }
       }
 
+      const fichaBtn = `
+        <button class="btn btn-primary w-full" style="margin-top:8px;padding:9px;font-weight:800;background:linear-gradient(135deg,#0284c7,#16a34a);border:none;color:#fff" onclick="generarFichaCustodia('${d.id}', '${modulo}', '${d.codigo_numerico || d.numero_contrato || d.codigo_unico || d.id}', '${(d.parte_b || d.nombre_puesto || d.nombre_completo || d.asunto || '').replace(/'/g, "\\'")}', '${d.nit || d.cedula || 'N/A'}', '${d.numero_contrato || 'N/A'}', '${slotFisico || 'ESTANTE C'}', '${d.fecha_inicio ? String(d.fecha_inicio).substring(0,10) + ' -- ' + (d.fecha_fin ? String(d.fecha_fin).substring(0,10) : 'Vigente') : 'N/A'}')">
+          📄 GENERAR FICHA DE CUSTODIA (HOJA DE CONTROL PDF)
+        </button>
+      `;
+
+      const pdfAttachBtn = d.url_pdf ? `
+        <button class="btn btn-ghost w-full" style="margin-top:6px;padding:8px;font-weight:700;color:var(--accent-green);border-color:var(--accent-green)" onclick="abrirVisorPDF('${d.url_pdf}', '${(d.parte_b || d.nombre_puesto || d.id).replace(/'/g, "\\'")}')">
+          👁️ VER PDF ESCANEADO VINCULADO
+        </button>
+      ` : `
+        <button class="btn btn-ghost w-full" style="margin-top:6px;padding:8px;font-weight:700;color:var(--accent-violet);border-color:var(--accent-violet)" onclick="abrirModalSubirPDF('${d.codigo_numerico || d.id}', '${d.id}', '${modulo}')">
+          📎 ADJUNTAR ENLACE DE PDF ESCANEADO
+        </button>
+      `;
+
       const qrBtn = `
-        <button class="btn btn-ghost w-full" style="margin-top:8px;padding:8px;font-weight:700;border-color:var(--accent-primary);color:var(--accent-primary)" onclick="generarEtiquetaQR('${d.id}', '${modulo}', '${d.codigo_numerico || d.numero_contrato || d.codigo_unico || d.id}', '${(d.parte_b || d.nombre_puesto || d.nombre_completo || d.asunto || '').replace(/'/g, "\\'")}', '${slotFisico}', '${d.nit || d.cedula || ''}', '${d.numero_contrato || ''}', '${d.fecha_inicio ? String(d.fecha_inicio).substring(0,10) + ' -- ' + (d.fecha_fin ? String(d.fecha_fin).substring(0,10) : 'Indefinido') : ''}')">
+        <button class="btn btn-ghost w-full" style="margin-top:6px;padding:8px;font-weight:700;border-color:var(--accent-primary);color:var(--accent-primary)" onclick="generarEtiquetaQR('${d.id}', '${modulo}', '${d.codigo_numerico || d.numero_contrato || d.codigo_unico || d.id}', '${(d.parte_b || d.nombre_puesto || d.nombre_completo || d.asunto || '').replace(/'/g, "\\'")}', '${slotFisico}', '${d.nit || d.cedula || ''}', '${d.numero_contrato || ''}', '${d.fecha_inicio ? String(d.fecha_inicio).substring(0,10) + ' -- ' + (d.fecha_fin ? String(d.fecha_fin).substring(0,10) : 'Indefinido') : ''}')">
           🖨️ GENERAR TIRA PARA LOMO DE CARPETA (CORTAR Y PEGAR)
         </button>
       `;
@@ -1048,6 +1064,8 @@ async function mostrarDetalleRegistro(id, modulo) {
           <div style="font-size:0.75rem;font-weight:700;color:var(--accent-primary);text-transform:uppercase">${modulo}</div>
           <div style="font-size:1.2rem;font-weight:800;color:var(--text-primary);margin-top:2px">${d.codigo_unico || d.codigo_documento || (d.codigo_numerico ? '#' + d.codigo_numerico : '') || d.numero_contrato || d.cedula || d.id}</div>
           ${glowBtn}
+          ${fichaBtn}
+          ${pdfAttachBtn}
           ${qrBtn}
         </div>
         ${rowsHtml}
@@ -1570,6 +1588,95 @@ function imprimirHojaPdfCola() {
       }
     });
   }, 500);
+}
+
+// ==========================================
+// FUNCIONES FICHA DE CUSTODIA Y PDF VINCULADO
+// ==========================================
+
+function generarFichaCustodia(id, modulo, codigo, titular, nit, numContrato, slotFisico, fechas) {
+  const modal = document.getElementById('modalFichaCustodia');
+  if (!modal) return;
+
+  const codClean = codigo ? String(codigo).replace(/^#/, '') : 'S/N';
+  const fcCod = document.getElementById('fcCodigo');
+  const fcCons = document.getElementById('fcConsecutivo');
+  const fcTit = document.getElementById('fcTitular');
+  const fcNit = document.getElementById('fcNit');
+  const fcNum = document.getElementById('fcNumContrato');
+  const fcUbi = document.getElementById('fcUbicacion');
+  const fcFec = document.getElementById('fcFechas');
+
+  if (fcCod) fcCod.textContent = `#${codClean}`;
+  if (fcCons) fcCons.textContent = `CONSECUTIVO SQL: ${id || 'CTR-' + codClean}`;
+  if (fcTit) fcTit.textContent = (titular || 'ENTIDAD / CLIENTE').toUpperCase();
+  if (fcNit) fcNit.textContent = nit || 'N/A';
+  if (fcNum) fcNum.textContent = numContrato ? `CONTRATO N° ${numContrato}` : (modulo || 'REGISTRO');
+  if (fcUbi) fcUbi.textContent = `ESTANTE ${slotFisico || 'C'} · COMPARTIMENTO CUSTODIA`;
+  if (fcFec) fcFec.textContent = fechas || '01/12/2011 -- 01/12/2024';
+
+  modal.classList.add('show');
+}
+
+function imprimirFichaCustodia() {
+  const printArea = document.getElementById('fichaCustodiaPrintArea');
+  if (!printArea) return;
+
+  const w = window.open('', '_blank');
+  w.document.write(`
+    <html>
+      <head>
+        <title>Ficha de Custodia y Hoja de Control - Coraza C.T.A.</title>
+        <style>
+          body { font-family: sans-serif; padding: 25px; margin: 0; background: #fff; color: #000; }
+          @media print { body { padding: 0; } }
+        </style>
+      </head>
+      <body>
+        ${printArea.innerHTML}
+      </body>
+    </html>
+  `);
+  w.document.close();
+  setTimeout(() => {
+    w.focus();
+    w.print();
+  }, 400);
+}
+
+function abrirModalSubirPDF(codigo, id, modulo) {
+  window.targetPdfId = id;
+  window.targetPdfModulo = modulo;
+  const inputCod = document.getElementById('targetPdfCodigo');
+  const inputUrl = document.getElementById('targetPdfUrl');
+  if (inputCod) inputCod.value = `${modulo} #${codigo}`;
+  if (inputUrl) inputUrl.value = '';
+  
+  const modal = document.getElementById('modalSubirPDF');
+  if (modal) modal.classList.add('show');
+}
+
+function guardarEnlacePDF() {
+  const url = document.getElementById('targetPdfUrl')?.value.trim();
+  if (!url) {
+    Swal.fire('Atención', 'Por favor ingresa una URL válida del archivo PDF.', 'warning');
+    return;
+  }
+
+  const pdfStorage = JSON.parse(localStorage.getItem('pdfStorageCoraza') || '{}');
+  const key = `${window.targetPdfModulo}_${window.targetPdfId}`;
+  pdfStorage[key] = url;
+  localStorage.setItem('pdfStorageCoraza', JSON.stringify(pdfStorage));
+
+  document.getElementById('modalSubirPDF')?.classList.remove('show');
+  
+  Swal.fire({
+    icon: 'success',
+    title: '✅ PDF Vinculado Exitosamente',
+    text: 'El documento PDF ha sido enlazado al expediente digital.',
+    timer: 2500,
+    showConfirmButton: false
+  });
 }
 
 // Inicializar badge al cargar
