@@ -2006,41 +2006,63 @@ function renderPrestamos(lista) {
 
   lista.forEach(p => {
     const estado = (p.estado || 'ACTIVO').toUpperCase();
+    const isPendiente = estado === 'PENDIENTE_APROBACION';
     const isDevuelto = estado === 'DEVUELTO';
     const isVencido = estado === 'VENCIDO';
+    const isRechazado = estado === 'RECHAZADO';
     
     let badgeClass = 'badge-warning';
     let iconTag = '<i class="fas fa-clock"></i>';
-    if (isVencido) {
+    
+    if (isPendiente) {
+      badgeClass = 'badge-info';
+      iconTag = '<i class="fas fa-inbox"></i>';
+    } else if (isVencido) {
       badgeClass = 'badge-danger';
       iconTag = '<i class="fas fa-exclamation-triangle"></i>';
-    }
-    if (isDevuelto) {
+    } else if (isDevuelto) {
       badgeClass = 'badge-success';
       iconTag = '<i class="fas fa-check-circle"></i>';
+    } else if (isRechazado) {
+      badgeClass = 'badge-subtle';
+      iconTag = '<i class="fas fa-times-circle"></i>';
     }
 
     const fPrest = p.fecha_prestamo ? String(p.fecha_prestamo).substring(0, 10) : '--';
     const fDev = p.fecha_devolucion ? String(p.fecha_devolucion).substring(0, 10) : '--';
 
+    let accionBtns = '';
+    if (isPendiente) {
+      accionBtns = `
+        <button class="btn btn-sm btn-success" style="padding:4px 8px;font-size:0.75rem" onclick="aprobarSolicitudPrestamo('${p.id}')" title="Aprobar Solicitud"><i class="fas fa-check"></i> Aprobar</button>
+        <button class="btn btn-sm btn-ghost" style="padding:4px 8px;font-size:0.75rem;color:#ef4444" onclick="rechazarSolicitudPrestamo('${p.id}')" title="Rechazar"><i class="fas fa-times"></i> Rechazar</button>
+      `;
+    } else if (!isDevuelto && !isRechazado) {
+      accionBtns = `<button class="btn btn-sm btn-primary" onclick="devolverPrestamo('${p.id}')"><i class="fas fa-undo"></i> Registrar Devolución</button>`;
+    } else if (isDevuelto) {
+      accionBtns = `<span class="text-sm text-muted"><i class="fas fa-check-circle" style="color:var(--accent-green)"></i> Devuelto</span>`;
+    } else {
+      accionBtns = `<span class="text-sm text-muted"><i class="fas fa-times-circle" style="color:#ef4444"></i> Rechazado</span>`;
+    }
+
     html += `
-      <tr style="${isVencido ? 'background: rgba(239, 68, 68, 0.04);' : ''}">
+      <tr style="${isPendiente ? 'background: rgba(2, 132, 199, 0.08);' : (isVencido ? 'background: rgba(239, 68, 68, 0.04);' : '')}">
         <td><strong style="color:var(--accent-primary)">${p.id}</strong></td>
         <td>${p.solicitante || 'N/A'}</td>
         <td><span class="badge badge-subtle">${p.departamento || 'N/A'}</span></td>
         <td>
           <div style="font-weight:700">${p.documento || 'Sin título'}</div>
-          <small style="color:var(--text-muted)">${p.codigo_documento || '--'}</small>
+          <small style="color:var(--text-muted)">${p.observaciones || '--'}</small>
         </td>
         <td>${fPrest}</td>
         <td>${fDev}</td>
-        <td><span class="badge ${badgeClass}">${iconTag} ${estado}</span></td>
+        <td><span class="badge ${badgeClass}">${iconTag} ${isPendiente ? 'PENDIENTE' : estado}</span></td>
         <td>
-          <div style="display:flex;gap:6px;align-items:center">
-            <button class="btn btn-sm btn-ghost" style="color:var(--accent-primary);padding:4px 8px;border-radius:var(--r-md);background:rgba(37,99,235,0.1)" onclick="mostrarDetalleRegistro('${p.id}', 'PRESTAMOS')" title="Ver detalles completos del préstamo">
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <button class="btn btn-sm btn-ghost" style="color:var(--accent-primary);padding:4px 8px;border-radius:var(--r-md);background:rgba(37,99,235,0.1)" onclick="mostrarDetalleRegistro('${p.id}', 'PRESTAMOS')" title="Ver detalles completos">
               <i class="fas fa-eye" style="font-size:1.1rem"></i>
             </button>
-            ${!isDevuelto ? `<button class="btn btn-sm btn-primary" onclick="devolverPrestamo('${p.id}')"><i class="fas fa-undo"></i> Registrar Devolución</button>` : `<span class="text-sm text-muted"><i class="fas fa-check-circle" style="color:var(--accent-green)"></i> Devuelto</span>`}
+            ${accionBtns}
           </div>
         </td>
       </tr>
@@ -2054,6 +2076,68 @@ function renderPrestamos(lista) {
   `;
 
   container.innerHTML = html;
+}
+
+function copiarEnlacePublicoPrestamo() {
+  const url = `${window.location.origin}/solicitud-prestamo.html`;
+  navigator.clipboard.writeText(url).then(() => {
+    Swal.fire({
+      icon: 'success',
+      title: '🔗 Enlace Copiado al Portapapeles',
+      text: `Enlace público de solicitud:\n${url}\n\nPuedes compartirlo por WhatsApp o correo con cualquier persona que requiera prestar carpetas físicas.`,
+      confirmButtonColor: '#0284c7'
+    });
+  }).catch(() => {
+    Swal.fire('Enlace de Solicitud de Préstamos', url, 'info');
+  });
+}
+
+async function aprobarSolicitudPrestamo(id) {
+  Swal.fire({
+    title: '¿Aprobar Solicitud de Préstamo?',
+    text: `Al aprobar la solicitud ${id}, la carpeta cambiará a estado ACTIVO / EN PRÉSTAMO y se actualizará en el mapa de estanterías físicas.`,
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText: '✅ Sí, Aprobar y Entregar Carpeta',
+    cancelButtonText: 'Cancelar',
+    confirmButtonColor: '#16a34a'
+  }).then(async (res) => {
+    if (res.isConfirmed) {
+      try {
+        const resp = await apiCall(`/api/prestamos/aprobar/${encodeURIComponent(id)}`, 'PUT');
+        if (resp.success) {
+          Swal.fire('✅ Aprobado Exitosamente', 'La solicitud ha sido aprobada y la carpeta está registrada como entregada.', 'success');
+          cargarPrestamos();
+        }
+      } catch(e) {
+        Swal.fire('Error', 'No se pudo aprobar la solicitud.', 'error');
+      }
+    }
+  });
+}
+
+async function rechazarSolicitudPrestamo(id) {
+  const { value: motivo } = await Swal.fire({
+    title: 'Rechazar Solicitud de Préstamo',
+    input: 'text',
+    inputLabel: 'Motivo del Rechazo:',
+    inputPlaceholder: 'Ej: Carpeta en revisión de auditoría / Reservada...',
+    showCancelButton: true,
+    confirmButtonText: '❌ Rechazar Solicitud',
+    confirmButtonColor: '#ef4444'
+  });
+
+  if (motivo !== undefined) {
+    try {
+      const resp = await apiCall(`/api/prestamos/rechazar/${encodeURIComponent(id)}`, 'PUT', { motivoRechazo: motivo });
+      if (resp.success) {
+        Swal.fire('Rechazado', 'La solicitud ha sido rechazada.', 'info');
+        cargarPrestamos();
+      }
+    } catch(e) {
+      Swal.fire('Error', 'No se pudo rechazar la solicitud.', 'error');
+    }
+  }
 }
 
 function filtrarPrestamos() {

@@ -433,13 +433,27 @@
         </div>
       </form>
     </div>
+    <div class="card" style="margin-bottom: 20px; background: linear-gradient(135deg, var(--bg-card), var(--bg-elevated)); border: 1px solid var(--border-medium);">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; padding: 6px 0;">
+        <div>
+          <div style="font-size: 1.05rem; font-weight: 800; color: var(--accent-primary);"><i class="fas fa-link"></i> Enlace Público de Solicitud de Préstamos</div>
+          <div style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 2px;">Comparte este enlace a cualquier empleado o supervisor para solicitar préstamos de carpetas sin necesidad de login.</div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="copiarEnlacePublicoPrestamo()"><i class="fas fa-copy"></i> COPIAR ENLACE PÚBLICO DE SOLICITUD</button>
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-header">
         <span class="card-title"><i class="fas fa-list"></i>Estado de préstamos</span>
         <div class="flex-row">
           <select id="filtroPrestEstado" class="inp" style="width:auto" onchange="filtrarPrestamos()">
-            <option value="todos">Todos los estados</option><option value="ACTIVO">🟢 Activos</option>
-            <option value="VENCIDO">🔴 Vencidos</option><option value="DEVUELTO">✅ Devueltos</option>
+            <option value="todos">Todos los estados</option>
+            <option value="PENDIENTE_APROBACION">📥 Solicitudes Pendientes (Aprobar)</option>
+            <option value="ACTIVO">🟢 Activos</option>
+            <option value="VENCIDO">🔴 Vencidos</option>
+            <option value="DEVUELTO">✅ Devueltos</option>
+            <option value="RECHAZADO">❌ Rechazados</option>
           </select>
           <select id="filtroPrestDepto" class="inp" style="width:auto" onchange="filtrarPrestamos()"><option value="todos">Todos los dptos</option></select>
           <input type="text" id="filtroPrestTexto" class="inp" style="width:200px" placeholder="Buscar solicitante o doc..." onkeyup="filtrarPrestamos()">

@@ -430,6 +430,54 @@ app.get('/api/prestamos', autenticarToken, async (req, res) => {
   }
 });
 
+// Endpoint Público para Solicitudes de Préstamo por Enlace Compartible (Sin login)
+app.post('/api/public/solicitud-prestamo', async (req, res) => {
+  const { nombre, cedula, departamento, documento, motivo, fechaDevolucion } = req.body;
+  try {
+    const id = `SOL-${Date.now().toString().slice(-6)}`;
+    await db.query(
+      `INSERT INTO prestamos (id, solicitante, departamento, documento, fecha_prestamo, fecha_devolucion, observaciones, estado) 
+       VALUES ($1, $2, $3, $4, CURRENT_DATE, $5, $6, $7)`,
+      [id, `${nombre} (CC: ${cedula})`, departamento, documento, fechaDevolucion || null, `SOLICITUD PUBLICA: ${motivo}`, 'PENDIENTE_APROBACION']
+    );
+
+    res.json({ success: true, id, message: '✅ Solicitud registrada exitosamente' });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+// Aprobar Solicitud de Préstamo
+app.put('/api/prestamos/aprobar/:id', autenticarToken, async (req, res) => {
+  const { id } = req.params;
+  try {
+    await db.query(
+      `UPDATE prestamos SET estado = 'ACTIVO', fecha_prestamo = CURRENT_DATE WHERE id = $1`,
+      [id]
+    );
+    await registrarAuditoria(req.user.email, 'PRESTAMOS', 'APROBAR_SOLICITUD', `Solicitud de Préstamo Aprobada: ${id}`, 'EXITO');
+    res.json({ success: true, message: '✅ Solicitud de Préstamo Aprobada y Activada' });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+// Rechazar Solicitud de Préstamo
+app.put('/api/prestamos/rechazar/:id', autenticarToken, async (req, res) => {
+  const { id } = req.params;
+  const { motivoRechazo } = req.body;
+  try {
+    await db.query(
+      `UPDATE prestamos SET estado = 'RECHAZADO', observaciones = observaciones || $1 WHERE id = $2`,
+      [` | RECHAZADO: ${motivoRechazo || 'No especificado'}`, id]
+    );
+    await registrarAuditoria(req.user.email, 'PRESTAMOS', 'RECHAZAR_SOLICITUD', `Solicitud Rechazada: ${id}`, 'EXITO');
+    res.json({ success: true, message: '✅ Solicitud Rechazada con éxito' });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 app.get('/api/prestamos/estado', autenticarToken, async (req, res) => {
   try {
     await db.query(`UPDATE prestamos SET estado = 'VENCIDO' WHERE estado = 'ACTIVO' AND fecha_devolucion < CURRENT_DATE`);
