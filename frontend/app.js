@@ -94,6 +94,9 @@ function verificarTokenActivo() {
 function cerrarSesion() {
   localStorage.removeItem('token');
   localStorage.removeItem('user');
+  localStorage.removeItem('colaTirasCoraza');
+  window.colaImpresionTiras = [];
+  actualizarBadgeCola();
   currentUser = null;
   document.getElementById('mainApp').classList.add('hidden');
   const chatFab = document.getElementById('chatFab');
