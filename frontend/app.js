@@ -1266,31 +1266,58 @@ function generarEtiquetaQR(id, modulo, codigo, titulo, slotFisico, nit = '', num
   modal.classList.add('show');
 }
 
-function imprimirEtiquetaQR() {
-  const printArea = document.getElementById('etiquetaPrintArea');
-  if (!printArea) return;
-  
-  const w = window.open('', '_blank');
-  w.document.write(`
+function imprimirAreaElemento(htmlContent, tituloDoc) {
+  let iframe = document.getElementById('iframePrintCoraza');
+  if (iframe) iframe.remove();
+
+  iframe = document.createElement('iframe');
+  iframe.id = 'iframePrintCoraza';
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0px';
+  iframe.style.height = '0px';
+  iframe.style.border = 'none';
+  iframe.style.zIndex = '-9999';
+  document.body.appendChild(iframe);
+
+  const doc = iframe.contentWindow.document;
+  doc.open();
+  doc.write(`
+    <!DOCTYPE html>
     <html>
       <head>
-        <title>Etiqueta Carpeta - Coraza Seguridad C.T.A.</title>
+        <title>${tituloDoc || 'Impresión Coraza C.T.A.'}</title>
         <style>
-          body { font-family: sans-serif; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
-          @media print { body { padding: 0; } }
+          * { box-sizing: border-box; }
+          body { font-family: system-ui, -apple-system, sans-serif; padding: 15px; background: #ffffff; color: #000000; display: flex; justify-content: center; align-items: center; margin: 0; }
+          @media print {
+            body { padding: 0; margin: 0; }
+            @page { margin: 8mm; }
+          }
         </style>
       </head>
       <body>
-        ${printArea.innerHTML}
+        ${htmlContent}
       </body>
     </html>
   `);
-  w.document.close();
+  doc.close();
+
   setTimeout(() => {
-    w.focus();
-    w.print();
-    w.close();
-  }, 400);
+    try {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+    } catch(e) {
+      window.print();
+    }
+  }, 350);
+}
+
+function imprimirEtiquetaQR() {
+  const printArea = document.getElementById('etiquetaPrintArea');
+  if (!printArea) return;
+  imprimirAreaElemento(printArea.innerHTML, 'Etiqueta Carpeta - Coraza C.T.A.');
 }
 
 function imprimirLoteTiras(modulo) {
@@ -1556,34 +1583,19 @@ function imprimirHojaPdfCola() {
     }
   });
 
-  const w = window.open('', '_blank');
-  w.document.write(`
-    <html>
-      <head>
-        <title>Impresión Ahorro de Papel - Coraza C.T.A.</title>
-        <style>
-          body { font-family: sans-serif; padding: 15px; margin: 0; background: #fff; color: #000; }
-          .grid { display: flex; flex-wrap: wrap; gap: 8px; }
-          @media print { body { padding: 0; } }
-        </style>
-      </head>
-      <body>
-        <div style="margin-bottom: 10px; border-bottom: 2px solid #000; padding-bottom: 4px;">
-          <h3 style="margin: 0; font-size: 1.1rem;">CORAZA SEGURIDAD C.T.A. — HOJA DE TIRAS PARA CARPETAS (AHORRO DE PAPEL)</h3>
-          <div style="font-size: 0.75rem; color: #555;">Imprima esta página, corte con tijeras por la línea punteada ✂️ y pegue en las carpetas.</div>
-        </div>
-        <div class="grid">
-          ${stripsHtml}
-        </div>
-      </body>
-    </html>
-  `);
-  w.document.close();
+  const fullHtml = `
+    <div style="margin-bottom: 10px; border-bottom: 2px solid #000; padding-bottom: 4px;">
+      <h3 style="margin: 0; font-size: 1.1rem;">CORAZA SEGURIDAD C.T.A. — HOJA DE TIRAS PARA CARPETAS (AHORRO DE PAPEL)</h3>
+      <div style="font-size: 0.75rem; color: #555;">Imprima esta página, corte con tijeras por la línea punteada ✂️ y pegue en las carpetas.</div>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+      ${stripsHtml}
+    </div>
+  `;
 
-  // Al imprimir, preguntar si desea vaciar la cola
+  imprimirAreaElemento(fullHtml, 'Impresión Ahorro de Papel - Coraza C.T.A.');
+
   setTimeout(() => {
-    w.focus();
-    w.print();
     Swal.fire({
       title: '¿Impresión finalizada?',
       text: '¿Deseas vaciar la cola de impresión de tiras ahora?',
@@ -1596,7 +1608,7 @@ function imprimirHojaPdfCola() {
         vaciarColaImpresion();
       }
     });
-  }, 500);
+  }, 1000);
 }
 
 // ==========================================
@@ -1660,27 +1672,7 @@ function generarFichaCustodia(id, modulo, codigo, titular, nit, numContrato, slo
 function imprimirFichaCustodia() {
   const printArea = document.getElementById('fichaCustodiaPrintArea');
   if (!printArea) return;
-
-  const w = window.open('', '_blank');
-  w.document.write(`
-    <html>
-      <head>
-        <title>Ficha de Custodia y Hoja de Control - Coraza C.T.A.</title>
-        <style>
-          body { font-family: sans-serif; padding: 25px; margin: 0; background: #fff; color: #000; }
-          @media print { body { padding: 0; } }
-        </style>
-      </head>
-      <body>
-        ${printArea.innerHTML}
-      </body>
-    </html>
-  `);
-  w.document.close();
-  setTimeout(() => {
-    w.focus();
-    w.print();
-  }, 400);
+  imprimirAreaElemento(printArea.innerHTML, 'Ficha de Custodia - Coraza C.T.A.');
 }
 
 function abrirModalSubirPDF(codigo, id, modulo) {
