@@ -979,35 +979,42 @@ app.get('/api/voxelsera-mapa', autenticarToken, async (req, res) => {
 app.get('/api/registro-detalle/:modulo/:id', autenticarToken, async (req, res) => {
   const { modulo, id } = req.params;
   try {
-    let queryStr = '';
-    const mNorm = (modulo || '').toUpperCase();
-    const cleanId = id ? id.replace(/^#/, '').trim() : '';
+    const mNorm = (modulo || '').toUpperCase().trim();
+    let result = { rows: [] };
 
     if (mNorm.includes('MINUTA')) {
-      queryStr = 'SELECT * FROM minutas WHERE id = $1 OR codigo_unico = $1 OR codigo_numerico::text = $2';
+      result = await db.query('SELECT * FROM minutas WHERE id = $1', [id]);
     } else if (mNorm.includes('CORRESPONDENCIA')) {
-      queryStr = 'SELECT * FROM correspondencia WHERE id = $1 OR codigo_documento = $1';
+      result = await db.query('SELECT * FROM correspondencia WHERE id = $1', [id]);
     } else if (mNorm.includes('CONTRATO')) {
-      queryStr = 'SELECT * FROM contratos WHERE id = $1 OR codigo_numerico::text = $2 OR numero_contrato = $1';
+      result = await db.query('SELECT * FROM contratos WHERE id = $1', [id]);
+      if (result.rows.length === 0) {
+        result = await db.query('SELECT * FROM contratos WHERE codigo_numerico::text = $1 OR numero_contrato = $1', [id]);
+      }
     } else if (mNorm.includes('ASOCIADO') || mNorm.includes('PERSONAL')) {
-      queryStr = 'SELECT * FROM personal_inactivo WHERE id = $1 OR cedula = $1 OR codigo_numerico::text = $2';
+      result = await db.query('SELECT * FROM personal_inactivo WHERE id = $1', [id]);
+      if (result.rows.length === 0) {
+        result = await db.query('SELECT * FROM personal_inactivo WHERE cedula = $1 OR codigo_numerico::text = $1', [id]);
+      }
     } else if (mNorm.includes('PRESTAMO')) {
-      queryStr = 'SELECT * FROM prestamos WHERE id = $1';
+      result = await db.query('SELECT * FROM prestamos WHERE id = $1', [id]);
     } else if (mNorm.includes('BIBLIOTECA')) {
-      queryStr = 'SELECT * FROM biblioteca WHERE id = $1';
+      result = await db.query('SELECT * FROM biblioteca WHERE id = $1', [id]);
     } else {
-      queryStr = 'SELECT * FROM contratos WHERE id = $1 OR codigo_numerico::text = $2';
+      // Módulo desconocido: intentar contratos por defecto
+      result = await db.query('SELECT * FROM contratos WHERE id = $1', [id]);
+      if (result.rows.length === 0) {
+        result = await db.query('SELECT * FROM contratos WHERE codigo_numerico::text = $1', [id]);
+      }
     }
 
-    const result = await db.query(queryStr, [id, cleanId]);
     if (result.rows.length === 0) {
-      const fbCtr = await db.query('SELECT * FROM contratos WHERE id = $1 OR codigo_numerico::text = $2', [id, cleanId]);
-      if (fbCtr.rows.length > 0) return res.json({ success: true, detalle: fbCtr.rows[0] });
       return res.status(404).json({ success: false, message: 'Registro no encontrado' });
     }
 
     res.json({ success: true, detalle: result.rows[0] });
   } catch(e) {
+    console.error('Error en /api/registro-detalle:', e.message);
     res.status(500).json({ success: false, message: e.message });
   }
 });
