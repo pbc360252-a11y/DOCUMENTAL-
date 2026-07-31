@@ -1173,6 +1173,12 @@ function cambiarFormatoEtiqueta(formato) {
 }
 
 function generarEtiquetaQR(id, modulo, codigo, titulo, slotFisico, nit = '', numContrato = '', fechas = '', obsEstado = '') {
+  // Cerrar otros modales abiertos para que el rótulo quede visible al frente
+  const mDet = document.getElementById('modalDetalleRegistro');
+  if (mDet) mDet.classList.remove('show');
+  const mConf = document.getElementById('modalConfirmacion');
+  if (mConf) mConf.classList.remove('show');
+
   const modal = document.getElementById('modalEtiquetaQR');
   if (!modal) return;
 
