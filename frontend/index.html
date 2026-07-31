@@ -387,13 +387,13 @@
   <div id="biblioteca" class="section">
     <div class="card">
       <div class="card-header"><span class="card-title"><i class="fas fa-book-open"></i>Biblioteca Documental</span>
-        <button class="btn btn-sm btn-ghost" onclick="mostrarModalCarpeta()"><i class="fas fa-folder-plus"></i>Nueva carpeta</button>
+        <button class="btn btn-sm btn-ghost" id="btnNuevaCarpetaBib" onclick="mostrarModalCarpeta()"><i class="fas fa-folder-plus"></i>Nueva carpeta</button>
       </div>
       <div class="grid-lib">
         <div class="folder-tree" style="height:460px" id="arbolCarpetas"></div>
         <div class="folder-tree" style="height:460px" id="contenidoCarpeta"></div>
       </div>
-      <div style="border-top:1px solid var(--border-subtle);margin-top:22px;padding-top:22px">
+      <div id="boxSubirDocBib" style="border-top:1px solid var(--border-subtle);margin-top:22px;padding-top:22px">
         <div class="card-title" style="margin-bottom:18px"><i class="fas fa-upload"></i>Subir nuevo documento</div>
         <form onsubmit="subirBiblioteca(event)">
           <div class="form-grid">

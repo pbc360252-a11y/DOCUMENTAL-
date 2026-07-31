@@ -469,7 +469,7 @@ app.post('/api/prestamos', autenticarToken, async (req, res) => {
   }
 });
 
-app.post('/api/prestamos/devolver', autenticarToken, async (req, res) => {
+app.post('/api/prestamos/devolver', autenticarToken, soloAdmin, async (req, res) => {
   const { id } = req.body;
   try {
     await db.query(
@@ -509,8 +509,8 @@ app.post('/api/public/solicitud-prestamo', async (req, res) => {
   }
 });
 
-// Aprobar Solicitud de Préstamo
-app.put('/api/prestamos/aprobar/:id', autenticarToken, async (req, res) => {
+// Aprobar Solicitud de Préstamo (Admin Principal únicamente)
+app.put('/api/prestamos/aprobar/:id', autenticarToken, soloAdmin, async (req, res) => {
   const { id } = req.params;
   try {
     await db.query(
@@ -524,8 +524,8 @@ app.put('/api/prestamos/aprobar/:id', autenticarToken, async (req, res) => {
   }
 });
 
-// Rechazar Solicitud de Préstamo
-app.put('/api/prestamos/rechazar/:id', autenticarToken, async (req, res) => {
+// Rechazar Solicitud de Préstamo (Admin Principal únicamente)
+app.put('/api/prestamos/rechazar/:id', autenticarToken, soloAdmin, async (req, res) => {
   const { id } = req.params;
   const { motivoRechazo } = req.body;
   try {
@@ -684,7 +684,7 @@ app.get('/api/biblioteca/arbol', autenticarToken, async (req, res) => {
   }
 });
 
-app.post('/api/biblioteca/carpetas', autenticarToken, async (req, res) => {
+app.post('/api/biblioteca/carpetas', autenticarToken, soloAdmin, async (req, res) => {
   const { nombre, padre, color } = req.body;
   try {
     const id = `DIR-${Date.now()}`;
@@ -698,7 +698,7 @@ app.post('/api/biblioteca/carpetas', autenticarToken, async (req, res) => {
   }
 });
 
-app.post('/api/biblioteca/archivos', autenticarToken, async (req, res) => {
+app.post('/api/biblioteca/archivos', autenticarToken, soloAdmin, async (req, res) => {
   const { nombre, categoria, version, url, fechaElab, descCambio, responsable, carpetaId } = req.body;
   try {
     const id = `BIB-${Date.now()}`;
@@ -712,7 +712,8 @@ app.post('/api/biblioteca/archivos', autenticarToken, async (req, res) => {
     res.status(500).json({ success: false, message: e.message });
   }
 });
-app.delete('/api/biblioteca/carpetas/:id', autenticarToken, async (req, res) => {
+
+app.delete('/api/biblioteca/carpetas/:id', autenticarToken, soloAdmin, async (req, res) => {
   const { id } = req.params;
   try {
     await db.query(`UPDATE biblioteca SET carpeta_id = 'RAIZ' WHERE carpeta_id = $1`, [id]);
@@ -724,7 +725,7 @@ app.delete('/api/biblioteca/carpetas/:id', autenticarToken, async (req, res) => 
   }
 });
 
-app.delete('/api/biblioteca/archivos/:id', autenticarToken, async (req, res) => {
+app.delete('/api/biblioteca/archivos/:id', autenticarToken, soloAdmin, async (req, res) => {
   const { id } = req.params;
   try {
     await db.query(`UPDATE biblioteca SET estado = 'ELIMINADO' WHERE id = $1`, [id]);

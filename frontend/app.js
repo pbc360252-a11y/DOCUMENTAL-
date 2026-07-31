@@ -2112,18 +2112,33 @@ function renderPrestamos(lista) {
     const fPrest = p.fecha_prestamo ? String(p.fecha_prestamo).substring(0, 10) : '--';
     const fDev = p.fecha_devolucion ? String(p.fecha_devolucion).substring(0, 10) : '--';
 
+    const role = (currentUser && (currentUser.rol || currentUser.role) ? currentUser.rol || currentUser.role : '').toUpperCase();
+    const isAuxiliar = role === 'AUXILIAR';
+
     let accionBtns = '';
-    if (isPendiente) {
-      accionBtns = `
-        <button class="btn btn-sm btn-success" style="padding:4px 8px;font-size:0.75rem" onclick="aprobarSolicitudPrestamo('${p.id}')" title="Aprobar Solicitud"><i class="fas fa-check"></i> Aprobar</button>
-        <button class="btn btn-sm btn-ghost" style="padding:4px 8px;font-size:0.75rem;color:#ef4444" onclick="rechazarSolicitudPrestamo('${p.id}')" title="Rechazar"><i class="fas fa-times"></i> Rechazar</button>
-      `;
-    } else if (!isDevuelto && !isRechazado) {
-      accionBtns = `<button class="btn btn-sm btn-primary" onclick="devolverPrestamo('${p.id}')"><i class="fas fa-undo"></i> Registrar Devolución</button>`;
-    } else if (isDevuelto) {
-      accionBtns = `<span class="text-sm text-muted"><i class="fas fa-check-circle" style="color:var(--accent-green)"></i> Devuelto</span>`;
+    if (isAuxiliar) {
+      if (isPendiente) {
+        accionBtns = `<span class="badge badge-info"><i class="fas fa-clock"></i> Pendiente Aprobación</span>`;
+      } else if (isDevuelto) {
+        accionBtns = `<span class="text-sm text-muted"><i class="fas fa-check-circle" style="color:var(--accent-green)"></i> Devuelto</span>`;
+      } else if (isRechazado) {
+        accionBtns = `<span class="text-sm text-muted"><i class="fas fa-times-circle" style="color:#ef4444"></i> Rechazado</span>`;
+      } else {
+        accionBtns = `<span class="badge badge-warning"><i class="fas fa-folder-open"></i> En Préstamo</span>`;
+      }
     } else {
-      accionBtns = `<span class="text-sm text-muted"><i class="fas fa-times-circle" style="color:#ef4444"></i> Rechazado</span>`;
+      if (isPendiente) {
+        accionBtns = `
+          <button class="btn btn-sm btn-success" style="padding:4px 8px;font-size:0.75rem" onclick="aprobarSolicitudPrestamo('${p.id}')" title="Aprobar Solicitud"><i class="fas fa-check"></i> Aprobar</button>
+          <button class="btn btn-sm btn-ghost" style="padding:4px 8px;font-size:0.75rem;color:#ef4444" onclick="rechazarSolicitudPrestamo('${p.id}')" title="Rechazar"><i class="fas fa-times"></i> Rechazar</button>
+        `;
+      } else if (!isDevuelto && !isRechazado) {
+        accionBtns = `<button class="btn btn-sm btn-primary" onclick="devolverPrestamo('${p.id}')"><i class="fas fa-undo"></i> Registrar Devolución</button>`;
+      } else if (isDevuelto) {
+        accionBtns = `<span class="text-sm text-muted"><i class="fas fa-check-circle" style="color:var(--accent-green)"></i> Devuelto</span>`;
+      } else {
+        accionBtns = `<span class="text-sm text-muted"><i class="fas fa-times-circle" style="color:#ef4444"></i> Rechazado</span>`;
+      }
     }
 
     html += `
@@ -2261,6 +2276,11 @@ function limpiarFiltrosPrest() {
 }
 
 async function devolverPrestamo(id) {
+  const role = (currentUser && (currentUser.rol || currentUser.role) ? currentUser.rol || currentUser.role : '').toUpperCase();
+  if (role === 'AUXILIAR') {
+    return Swal.fire('Función Exclusiva', 'En el módulo de Préstamos, cambiar el estado a DEVUELTO es una función reservada para el Administrador Principal.', 'warning');
+  }
+
   const confirm = await Swal.fire({
     title: '¿Confirmar Devolución?',
     text: `¿Marcar el préstamo ${id} como DEVUELTO?`,
@@ -2501,6 +2521,8 @@ function renderArbolCarpetas() {
 
   const carpetas = window._bibCarpetas;
   const activa = window._bibCarpetaActiva || 'RAIZ';
+  const role = (currentUser && (currentUser.rol || currentUser.role) ? currentUser.rol || currentUser.role : '').toUpperCase();
+  const isAuxiliar = role === 'AUXILIAR';
 
   let html = `
     <div style="font-size:0.75rem;font-weight:800;color:var(--text-secondary);text-transform:uppercase;margin-bottom:10px">Estructura de Directorios</div>
@@ -2512,14 +2534,18 @@ function renderArbolCarpetas() {
   carpetas.forEach(c => {
     const isSel = activa === c.id;
     const numArchivos = window._bibArchivos.filter(a => a.carpeta_id === c.id).length;
+    const btnDelFolder = isAuxiliar ? '' : `
+      <button class="btn btn-sm btn-ghost" onclick="eliminarCarpetaBiblioteca('${c.id}', '${c.nombre}', event)" title="Eliminar carpeta" style="padding:2px 6px;color:${isSel ? '#fff' : 'var(--accent-red)'}">
+        <i class="fas fa-trash-alt"></i>
+      </button>
+    `;
+
     html += `
       <div onclick="seleccionarCarpetaBib('${c.id}')" style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-radius:6px;cursor:pointer;background:${isSel ? 'var(--accent-primary)' : 'var(--bg-elevated)'};color:${isSel ? '#fff' : 'var(--text-primary)'};font-weight:600;margin-bottom:6px;border:1px solid ${isSel ? 'var(--accent-primary)' : 'var(--border-subtle)'}">
         <span style="display:flex;align-items:center;gap:8px"><i class="fas fa-folder" style="color:${isSel ? '#fff' : (c.color || 'var(--accent-amber)')}"></i> ${c.nombre}</span>
         <div style="display:flex;align-items:center;gap:6px">
           <span class="badge" style="background:${isSel ? 'rgba(255,255,255,0.2)' : 'var(--bg-card)'};color:${isSel ? '#fff' : 'var(--text-muted)'}">${numArchivos}</span>
-          <button class="btn btn-sm btn-ghost" onclick="eliminarCarpetaBiblioteca('${c.id}', '${c.nombre}', event)" title="Eliminar carpeta" style="padding:2px 6px;color:${isSel ? '#fff' : 'var(--accent-red)'}">
-            <i class="fas fa-trash-alt"></i>
-          </button>
+          ${btnDelFolder}
         </div>
       </div>
     `;
@@ -2543,6 +2569,8 @@ function renderContenidoCarpeta(carpetaId) {
 
   const archivos = window._bibArchivos.filter(a => (a.carpeta_id || 'RAIZ') === carpetaId);
   const nombreCarpeta = carpetaId === 'RAIZ' ? 'Raíz de Biblioteca' : (window._bibCarpetas.find(c => c.id === carpetaId)?.nombre || 'Carpeta Seleccionada');
+  const role = (currentUser && (currentUser.rol || currentUser.role) ? currentUser.rol || currentUser.role : '').toUpperCase();
+  const isAuxiliar = role === 'AUXILIAR';
 
   if (archivos.length === 0) {
     contenidoDiv.innerHTML = `
@@ -2563,6 +2591,12 @@ function renderContenidoCarpeta(carpetaId) {
 
   archivos.forEach(a => {
     const fElab = a.fecha_elaboracion ? String(a.fecha_elaboracion).substring(0, 10) : '--';
+    const btnDelFile = isAuxiliar ? '' : `
+      <button class="btn btn-sm btn-ghost" onclick="eliminarArchivoBiblioteca('${a.id}', '${a.nombre}')" title="Eliminar documento" style="padding:6px 10px;color:var(--accent-red);background:rgba(239,68,68,0.1)">
+        <i class="fas fa-trash-alt"></i>
+      </button>
+    `;
+
     html += `
       <div style="background:var(--bg-elevated);border:1px solid var(--border-medium);border-radius:8px;padding:12px;display:flex;justify-content:space-between;align-items:center;gap:10px">
         <div>
@@ -2575,9 +2609,7 @@ function renderContenidoCarpeta(carpetaId) {
         </div>
         <div style="display:flex;align-items:center;gap:8px">
           ${a.url ? `<a href="${a.url}" target="_blank" class="btn btn-sm btn-primary" style="padding:6px 12px"><i class="fas fa-external-link-alt"></i> Abrir</a>` : `<span class="text-sm text-muted">Sin enlace</span>`}
-          <button class="btn btn-sm btn-ghost" onclick="eliminarArchivoBiblioteca('${a.id}', '${a.nombre}')" title="Eliminar documento" style="padding:6px 10px;color:var(--accent-red);background:rgba(239,68,68,0.1)">
-            <i class="fas fa-trash-alt"></i>
-          </button>
+          ${btnDelFile}
         </div>
       </div>
     `;
