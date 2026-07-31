@@ -2755,9 +2755,14 @@ function renderContratos(lista) {
         <td><strong style="color:var(--accent-green)">${val}</strong></td>
         <td><span class="badge ${badgeClass}">${estado}</span></td>
         <td>
-          <button class="btn btn-sm btn-ghost" style="color:var(--accent-primary);padding:4px 8px;border-radius:var(--r-md);background:rgba(37,99,235,0.1)" onclick="mostrarDetalleRegistro('${c.id}', 'CONTRATOS')" title="Ver detalles del contrato">
-            <i class="fas fa-eye" style="font-size:1.1rem"></i>
-          </button>
+          <div style="display:flex;gap:5px;align-items:center">
+            <button class="btn btn-sm btn-ghost" style="color:var(--accent-primary);padding:4px 8px;border-radius:var(--r-md);background:rgba(37,99,235,0.1)" onclick="mostrarDetalleRegistro('${c.id}', 'CONTRATOS')" title="Ver detalles del contrato">
+              <i class="fas fa-eye" style="font-size:1.1rem"></i>
+            </button>
+            <button class="btn btn-sm btn-primary" style="padding:5px 9px;font-size:0.75rem;font-weight:800;background:linear-gradient(135deg,#0284c7,#16a34a);border:none" onclick="imprimirRotuloDirecto('CONTRATOS', '${c.id}')" title="Imprimir Rótulo / Tira de Carpeta en 1 Clic">
+              <i class="fas fa-print"></i> Rótulo
+            </button>
+          </div>
         </td>
       </tr>
     `;
@@ -2765,6 +2770,44 @@ function renderContratos(lista) {
 
   html += '</tbody></table></div>';
   container.innerHTML = html;
+}
+
+function imprimirRotuloDirecto(modulo, id) {
+  let item = null;
+
+  if (modulo === 'CONTRATOS' && window.todosLosContratos) {
+    item = window.todosLosContratos.find(c => String(c.id) === String(id));
+  } else if (modulo === 'MINUTAS' && window.todasLasMinutas) {
+    item = window.todasLasMinutas.find(m => String(m.id) === String(id));
+  } else if (modulo === 'PERSONAL' && window.todoElPersonal) {
+    item = window.todoElPersonal.find(p => String(p.id) === String(id));
+  }
+
+  if (!item) {
+    apiCall(`/api/registro-detalle/${encodeURIComponent(modulo)}/${encodeURIComponent(id)}`).then(res => {
+      if (res.success && res.detalle) {
+        const d = res.detalle;
+        const slotFisico = d.voxelsera || d.ubicacion || 'ESTANTE C';
+        const codigo = d.codigo_numerico || d.numero_contrato || d.codigo_unico || d.id;
+        const titulo = d.parte_b || d.nombre_puesto || d.nombre_completo || d.asunto || d.nombre || 'CARPETA ARCHIVO';
+        const nit = d.nit || d.cedula || '';
+        const numContrato = d.numero_contrato || '';
+        const fechas = d.fecha_inicio ? `${String(d.fecha_inicio).substring(0,10)} -- ${d.fecha_fin ? String(d.fecha_fin).substring(0,10) : 'Vigente'}` : '';
+
+        generarEtiquetaQR(d.id, modulo, codigo, titulo, slotFisico, nit, numContrato, fechas);
+      }
+    });
+    return;
+  }
+
+  const slotFisico = item.voxelsera || item.ubicacion || 'ESTANTE C';
+  const codigo = item.codigo_numerico || item.numero_contrato || item.codigo_unico || item.id;
+  const titulo = item.parte_b || item.nombre_puesto || item.nombre_completo || item.nombre || item.asunto || 'CARPETA ARCHIVO';
+  const nit = item.nit || item.cedula || '';
+  const numContrato = item.numero_contrato || '';
+  const fechas = item.fecha_inicio ? `${String(item.fecha_inicio).substring(0,10)} -- ${item.fecha_fin ? String(item.fecha_fin).substring(0,10) : 'Vigente'}` : '';
+
+  generarEtiquetaQR(item.id, modulo, codigo, titulo, slotFisico, nit, numContrato, fechas);
 }
 
 function filtrarContratos() {
