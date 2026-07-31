@@ -1008,98 +1008,133 @@ async function mostrarDetalleRegistro(id, modulo) {
   body.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted)"><i class="fas fa-spinner fa-spin"></i> Cargando información detallada...</div>';
   modal.classList.add('show');
 
-  try {
-    const res = await apiCall(`/api/registro-detalle/${encodeURIComponent(modulo)}/${encodeURIComponent(id)}`);
-    if (res.success && res.detalle) {
-      const d = res.detalle;
-      let rowsHtml = '';
-      let slotFisico = d.voxelsera || d.ubicacion || '';
-      
-      for (const [key, val] of Object.entries(d)) {
-        if (val !== null && val !== undefined && val !== '') {
-          const formattedKey = key.replace(/_/g, ' ').toUpperCase();
-          let displayVal = val;
-          if (typeof val === 'string' && val.includes('T00:00:00')) {
-            displayVal = val.substring(0, 10);
-          }
-          rowsHtml += `
-            <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border-subtle);gap:14px">
-              <span style="font-size:0.78rem;font-weight:700;color:var(--text-secondary);min-width:140px">${formattedKey}</span>
-              <span style="font-size:0.85rem;font-weight:600;color:var(--text-primary);text-align:right;word-break:break-word">${displayVal}</span>
-            </div>
-          `;
-        }
-      }
+  let d = null;
+  const mNorm = (modulo || '').toUpperCase();
+  const idStr = String(id || '');
 
-      window.currentDetailRecord = d;
-      window.currentDetailModulo = modulo;
-
-      const fichaBtn = `
-        <button class="btn btn-primary w-full" style="margin-top:8px;padding:9px;font-weight:800;background:linear-gradient(135deg,#0284c7,#16a34a);border:none;color:#fff" onclick="generarFichaCustodiaDesdeDetalle()">
-          📄 GENERAR FICHA DE CUSTODIA (HOJA DE CONTROL PDF)
-        </button>
-      `;
-
-      const pdfAttachBtn = d.url_pdf ? `
-        <button class="btn btn-ghost w-full" style="margin-top:6px;padding:8px;font-weight:700;color:var(--accent-green);border-color:var(--accent-green)" onclick="abrirVisorPDF('${d.url_pdf}', 'EXPEDIENTE DIGITAL')">
-          👁️ VER PDF ESCANEADO VINCULADO
-        </button>
-      ` : `
-        <button class="btn btn-ghost w-full" style="margin-top:6px;padding:8px;font-weight:700;color:var(--accent-violet);border-color:var(--accent-violet)" onclick="abrirModalSubirPDF('${d.codigo_numerico || d.id}', '${d.id}', '${modulo}')">
-          📎 ADJUNTAR ENLACE DE PDF ESCANEADO
-        </button>
-      `;
-
-      const codClean = d.codigo_numerico || d.numero_contrato || d.codigo_unico || d.id;
-      const titClean = (d.parte_b || d.nombre_puesto || d.nombre_completo || d.asunto || d.nombre || 'CARPETA ARCHIVO').toUpperCase();
-      const nitClean = d.nit || d.cedula || 'N/A';
-      const fecClean = d.fecha_inicio ? `${String(d.fecha_inicio).substring(0,10)} -- ${d.fecha_fin ? String(d.fecha_fin).substring(0,10) : 'Vigente'}` : 'N/A';
-
-      const directMarquillaHtml = `
-        <div style="margin-top:20px;padding:16px;background:#ffffff;color:#000000;border:2px dashed #0284c7;border-radius:12px;box-shadow:0 8px 25px rgba(0,0,0,0.15);text-align:center" id="directMarquillaContainer">
-          <div style="font-size:0.75rem;font-weight:900;color:#0284c7;margin-bottom:10px;text-transform:uppercase">
-            ✂️ RÓTULO FÍSICO Y MARQUILLA DE ESTA CARPETA (LISTO PARA IMPRIMIR)
-          </div>
-          
-          <div id="directMarquillaContent" style="display:inline-block;padding:14px;border:2px solid #0f172a;border-radius:6px;background:#ffffff;width:100%;max-width:440px;text-align:left">
-            <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #0f172a;padding-bottom:4px;margin-bottom:6px;gap:12px">
-              <span style="font-size:0.7rem;font-weight:900;color:#0284c7">${modulo.toUpperCase()} · ESTANTE ${slotFisico || 'C'}</span>
-              <span style="font-size:0.68rem;font-weight:800;color:#475569">NIT/CC: ${nitClean}</span>
-            </div>
-            <div style="font-size:1.05rem;font-weight:900;color:#0f172a;margin-bottom:8px;line-height:1.2;text-transform:uppercase">
-              ${titClean}
-            </div>
-            <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid #cbd5e1;padding-top:6px;gap:10px">
-              <span style="font-size:0.75rem;font-weight:700;color:#334155">${fecClean}</span>
-              <span style="font-size:1.6rem;font-weight:900;color:#0284c7">#${codClean}</span>
-            </div>
-          </div>
-
-          <div style="margin-top:14px">
-            <button class="btn btn-primary w-full" style="padding:12px;font-size:0.95rem;font-weight:900;background:linear-gradient(135deg,#0284c7,#16a34a);border:none;box-shadow:0 4px 15px rgba(2,132,199,0.4);color:#fff" onclick="imprimirDirectoDesdeDetalle()">
-              🖨️ IMPRIMIR ESTE RÓTULO AHORA (IMPRESORA / PDF)
-            </button>
-          </div>
-        </div>
-      `;
-
-      body.innerHTML = `
-        <div style="background:var(--bg-elevated);padding:14px;border-radius:var(--r-md);border:1px solid var(--border-medium);margin-bottom:14px">
-          <div style="font-size:0.75rem;font-weight:700;color:var(--accent-primary);text-transform:uppercase">${modulo}</div>
-          <div style="font-size:1.2rem;font-weight:800;color:var(--text-primary);margin-top:2px">${d.codigo_unico || d.codigo_documento || (d.codigo_numerico ? '#' + d.codigo_numerico : '') || d.numero_contrato || d.cedula || d.id}</div>
-          ${glowBtn}
-          ${fichaBtn}
-          ${pdfAttachBtn}
-        </div>
-        ${rowsHtml}
-        ${directMarquillaHtml}
-      `;
-    } else {
-      body.innerHTML = '<div class="alert alert-danger">No se pudo obtener el detalle del registro.</div>';
-    }
-  } catch(e) {
-    body.innerHTML = '<div class="alert alert-danger">Error de conexión al obtener los detalles del registro.</div>';
+  // 1. Búsqueda instantánea en memoria local (0ms latencia)
+  if (mNorm.includes('CONTRATO') && window.todosLosContratos) {
+    d = window.todosLosContratos.find(c => String(c.id) === idStr || String(c.codigo_numerico) === idStr || String(c.numero_contrato) === idStr);
+  } else if (mNorm.includes('MINUTA') && window.todasLasMinutas) {
+    d = window.todasLasMinutas.find(m => String(m.id) === idStr || String(m.codigo_numerico) === idStr);
+  } else if ((mNorm.includes('ASOCIADO') || mNorm.includes('PERSONAL')) && window.todoElPersonal) {
+    d = window.todoElPersonal.find(p => String(p.id) === idStr || String(p.cedula) === idStr || String(p.codigo_numerico) === idStr);
   }
+
+  if (!d && window.ultimosResultadosBusqueda) {
+    d = window.ultimosResultadosBusqueda.find(r => String(r.id) === idStr || String(r.codigo_numerico) === idStr);
+  }
+
+  // 2. Si no está en memoria local, hacer fetch
+  if (!d) {
+    try {
+      const res = await apiCall(`/api/registro-detalle/${encodeURIComponent(modulo)}/${encodeURIComponent(id)}`);
+      if (res && res.success && res.detalle) {
+        d = res.detalle;
+      }
+    } catch(e) {
+      console.warn("API detalle error fallback:", e);
+    }
+  }
+
+  // 3. Fallback de emergencia si existe en variable global
+  if (!d && window.currentDetailRecord) {
+    d = window.currentDetailRecord;
+  }
+
+  if (!d) {
+    body.innerHTML = '<div class="alert alert-danger">No se encontraron detalles para este registro. Por favor recarga la página.</div>';
+    return;
+  }
+
+  window.currentDetailRecord = d;
+  window.currentDetailModulo = modulo;
+
+  let rowsHtml = '';
+  let slotFisico = d.voxelsera || d.ubicacion || 'ESTANTE C';
+
+  for (const [key, val] of Object.entries(d)) {
+    if (val !== null && val !== undefined && val !== '') {
+      const formattedKey = key.replace(/_/g, ' ').toUpperCase();
+      let displayVal = val;
+      if (typeof val === 'string' && val.includes('T00:00:00')) {
+        displayVal = val.substring(0, 10);
+      }
+      rowsHtml += `
+        <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border-subtle);gap:14px">
+          <span style="font-size:0.78rem;font-weight:700;color:var(--text-secondary);min-width:140px">${formattedKey}</span>
+          <span style="font-size:0.85rem;font-weight:600;color:var(--text-primary);text-align:right;word-break:break-word">${displayVal}</span>
+        </div>
+      `;
+    }
+  }
+
+  const fichaBtn = `
+    <button class="btn btn-primary w-full" style="margin-top:8px;padding:9px;font-weight:800;background:linear-gradient(135deg,#0284c7,#16a34a);border:none;color:#fff" onclick="generarFichaCustodiaDesdeDetalle()">
+      📄 GENERAR FICHA DE CUSTODIA (HOJA DE CONTROL PDF)
+    </button>
+  `;
+
+  const pdfAttachBtn = d.url_pdf ? `
+    <button class="btn btn-ghost w-full" style="margin-top:6px;padding:8px;font-weight:700;color:var(--accent-green);border-color:var(--accent-green)" onclick="abrirVisorPDF('${d.url_pdf}', 'EXPEDIENTE DIGITAL')">
+      👁️ VER PDF ESCANEADO VINCULADO
+    </button>
+  ` : `
+    <button class="btn btn-ghost w-full" style="margin-top:6px;padding:8px;font-weight:700;color:var(--accent-violet);border-color:var(--accent-violet)" onclick="abrirModalSubirPDF('${d.codigo_numerico || d.id}', '${d.id}', '${modulo}')">
+      📎 ADJUNTAR ENLACE DE PDF ESCANEADO
+    </button>
+  `;
+
+  const glowBtn = slotFisico ? `
+    <button class="btn btn-primary w-full" style="margin-top:10px;padding:10px;background:linear-gradient(135deg,#38bdf8,#f59e0b);border:none;color:#fff;font-weight:800;letter-spacing:0.5px;box-shadow:0 0 15px rgba(245,158,11,0.4)" onclick="iluminarUbicacionFisica('${slotFisico}')">
+      ✨ ILUMINAR EN MAPA DE ARCHIVO FÍSICO (${slotFisico})
+    </button>
+  ` : '';
+
+  const codClean = d.codigo_numerico || d.numero_contrato || d.codigo_unico || d.id;
+  const titClean = (d.parte_b || d.nombre_puesto || d.nombre_completo || d.asunto || d.nombre || 'CARPETA ARCHIVO').toUpperCase();
+  const nitClean = d.nit || d.cedula || 'N/A';
+  const fecClean = d.fecha_inicio ? `${String(d.fecha_inicio).substring(0,10)} -- ${d.fecha_fin ? String(d.fecha_fin).substring(0,10) : 'Vigente'}` : 'N/A';
+
+  const directMarquillaHtml = `
+    <div style="margin-top:20px;padding:16px;background:#ffffff;color:#000000;border:2px dashed #0284c7;border-radius:12px;box-shadow:0 8px 25px rgba(0,0,0,0.15);text-align:center" id="directMarquillaContainer">
+      <div style="font-size:0.75rem;font-weight:900;color:#0284c7;margin-bottom:10px;text-transform:uppercase">
+        ✂️ RÓTULO FÍSICO Y MARQUILLA DE ESTA CARPETA (LISTO PARA IMPRIMIR)
+      </div>
+      
+      <div id="directMarquillaContent" style="display:inline-block;padding:14px;border:2px solid #0f172a;border-radius:6px;background:#ffffff;width:100%;max-width:440px;text-align:left">
+        <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #0f172a;padding-bottom:4px;margin-bottom:6px;gap:12px">
+          <span style="font-size:0.7rem;font-weight:900;color:#0284c7">${modulo.toUpperCase()} · ESTANTE ${slotFisico || 'C'}</span>
+          <span style="font-size:0.68rem;font-weight:800;color:#475569">NIT/CC: ${nitClean}</span>
+        </div>
+        <div style="font-size:1.05rem;font-weight:900;color:#0f172a;margin-bottom:8px;line-height:1.2;text-transform:uppercase">
+          ${titClean}
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid #cbd5e1;padding-top:6px;gap:10px">
+          <span style="font-size:0.75rem;font-weight:700;color:#334155">${fecClean}</span>
+          <span style="font-size:1.6rem;font-weight:900;color:#0284c7">#${codClean}</span>
+        </div>
+      </div>
+
+      <div style="margin-top:14px">
+        <button class="btn btn-primary w-full" style="padding:12px;font-size:0.95rem;font-weight:900;background:linear-gradient(135deg,#0284c7,#16a34a);border:none;box-shadow:0 4px 15px rgba(2,132,199,0.4);color:#fff" onclick="imprimirDirectoDesdeDetalle()">
+          🖨️ IMPRIMIR ESTE RÓTULO AHORA (IMPRESORA / PDF)
+        </button>
+      </div>
+    </div>
+  `;
+
+  body.innerHTML = `
+    <div style="background:var(--bg-elevated);padding:14px;border-radius:var(--r-md);border:1px solid var(--border-medium);margin-bottom:14px">
+      <div style="font-size:0.75rem;font-weight:700;color:var(--accent-primary);text-transform:uppercase">${modulo}</div>
+      <div style="font-size:1.2rem;font-weight:800;color:var(--text-primary);margin-top:2px">${d.codigo_unico || d.codigo_documento || (d.codigo_numerico ? '#' + d.codigo_numerico : '') || d.numero_contrato || d.cedula || d.id}</div>
+      ${glowBtn}
+      ${fichaBtn}
+      ${pdfAttachBtn}
+    </div>
+    ${rowsHtml}
+    ${directMarquillaHtml}
+  `;
 }
 
 function imprimirDirectoDesdeDetalle() {
