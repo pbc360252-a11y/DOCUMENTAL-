@@ -1011,8 +1011,14 @@ async function mostrarDetalleRegistro(id, modulo) {
         }
       }
 
+      const qrBtn = `
+        <button class="btn btn-ghost w-full" style="margin-top:8px;padding:8px;font-weight:700;border-color:var(--accent-primary);color:var(--accent-primary)" onclick="generarEtiquetaQR('${d.id}', '${modulo}', '${d.codigo_numerico || d.numero_contrato || d.codigo_unico || d.id}', '${(d.parte_b || d.nombre_puesto || d.nombre_completo || d.asunto || '').replace(/'/g, "\\'")}', '${slotFisico}')">
+          🏷️ GENERAR ETIQUETA IMPRIMIBLE CON CÓDIGO QR
+        </button>
+      `;
+
       const glowBtn = slotFisico ? `
-        <button class="btn btn-primary w-full" style="margin-top:14px;padding:10px;background:linear-gradient(135deg,#38bdf8,#f59e0b);border:none;color:#fff;font-weight:800;letter-spacing:0.5px;box-shadow:0 0 15px rgba(245,158,11,0.4)" onclick="iluminarUbicacionFisica('${slotFisico}')">
+        <button class="btn btn-primary w-full" style="margin-top:10px;padding:10px;background:linear-gradient(135deg,#38bdf8,#f59e0b);border:none;color:#fff;font-weight:800;letter-spacing:0.5px;box-shadow:0 0 15px rgba(245,158,11,0.4)" onclick="iluminarUbicacionFisica('${slotFisico}')">
           ✨ ILUMINAR EN MAPA DE ARCHIVO FÍSICO (${slotFisico})
         </button>
       ` : '';
@@ -1020,8 +1026,9 @@ async function mostrarDetalleRegistro(id, modulo) {
       body.innerHTML = `
         <div style="background:var(--bg-elevated);padding:14px;border-radius:var(--r-md);border:1px solid var(--border-medium);margin-bottom:14px">
           <div style="font-size:0.75rem;font-weight:700;color:var(--accent-primary);text-transform:uppercase">${modulo}</div>
-          <div style="font-size:1.2rem;font-weight:800;color:var(--text-primary);margin-top:2px">${d.codigo_unico || d.codigo_documento || d.numero_contrato || d.cedula || d.id}</div>
+          <div style="font-size:1.2rem;font-weight:800;color:var(--text-primary);margin-top:2px">${d.codigo_unico || d.codigo_documento || (d.codigo_numerico ? '#' + d.codigo_numerico : '') || d.numero_contrato || d.cedula || d.id}</div>
           ${glowBtn}
+          ${qrBtn}
         </div>
         ${rowsHtml}
       `;
@@ -1095,6 +1102,120 @@ document.addEventListener('keydown', function(e) {
     if (inp) { inp.focus(); inp.select(); }
   }
 });
+
+// ==========================================
+// FUNCIONALIDADES SGD CORAZA v8.0
+// 1. GENERADOR DE ETIQUETA QR FISICA IMPRIMIBLE
+// 2. VISOR EMBEBIDO DE PDF Y DOCUMENTOS
+// 3. ESCÁNER CON CÁMARA O CÓDIGO DE BARRAS
+// ==========================================
+
+function generarEtiquetaQR(id, modulo, codigo, titulo, slotFisico) {
+  const modal = document.getElementById('modalEtiquetaQR');
+  if (!modal) return;
+
+  const lblMod = document.getElementById('qrLabelModulo');
+  const lblCod = document.getElementById('qrLabelCodigo');
+  const lblTit = document.getElementById('qrLabelTitulo');
+  const lblSub = document.getElementById('qrLabelSub');
+  const box = document.getElementById('qrCanvasBox');
+
+  if (lblMod) lblMod.textContent = `${modulo} · CORAZA C.T.A.`;
+  if (lblCod) lblCod.textContent = codigo.startsWith('#') ? codigo : `#${codigo}`;
+  if (lblTit) lblTit.textContent = titulo || 'CARPETA CUSTODIA DOCUMENTAL';
+  if (lblSub) lblSub.textContent = slotFisico ? `Estante ${slotFisico.replace('VOXEL_', '')} · Archivo Voxelsera` : 'Archivo Central Voxelsera';
+
+  if (box) {
+    box.innerHTML = '';
+    const payload = JSON.stringify({ id, modulo, codigo, slot: slotFisico, app: 'SGD_CORAZA_v8' });
+    if (typeof QRCode !== 'undefined') {
+      new QRCode(box, {
+        text: payload,
+        width: 120,
+        height: 120,
+        colorDark: "#000000",
+        colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.H
+      });
+    } else {
+      box.innerHTML = `<div style="padding:15px;background:#f8fafc;color:#0f172a;font-weight:800;font-size:1.1rem;border:2px solid #000">${codigo}</div>`;
+    }
+  }
+
+  modal.classList.add('show');
+}
+
+function imprimirEtiquetaQR() {
+  const printArea = document.getElementById('etiquetaPrintArea');
+  if (!printArea) return;
+  
+  const w = window.open('', '_blank');
+  w.document.write(`
+    <html>
+      <head>
+        <title>Etiqueta Carpeta - Coraza Seguridad C.T.A.</title>
+        <style>
+          body { font-family: sans-serif; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+          @media print { body { padding: 0; } }
+        </style>
+      </head>
+      <body>
+        ${printArea.innerHTML}
+      </body>
+    </html>
+  `);
+  w.document.close();
+  setTimeout(() => {
+    w.focus();
+    w.print();
+    w.close();
+  }, 400);
+}
+
+function abrirVisorPDF(url, titulo) {
+  const modal = document.getElementById('modalVisorPDF');
+  const frame = document.getElementById('pdfFrame');
+  const lblTitle = document.getElementById('pdfViewerTitle');
+  const btnDl = document.getElementById('btnPdfDownload');
+
+  if (!modal || !frame) return;
+
+  if (lblTitle) lblTitle.textContent = titulo || 'Documento Digitalizado';
+  if (btnDl) {
+    btnDl.href = url || '#';
+    btnDl.setAttribute('download', titulo || 'documento.pdf');
+  }
+
+  frame.src = url || 'about:blank';
+  modal.classList.add('show');
+}
+
+function abrirEscanerCamaraQR() {
+  Swal.fire({
+    title: '📷 Escáner de Código QR / Barras',
+    text: 'Ingresa o escanea el código físico impreso en la carpeta (Ej: #362):',
+    input: 'text',
+    inputPlaceholder: '#362 o código de carpeta...',
+    showCancelButton: true,
+    confirmButtonText: '🔍 Buscar Carpeta',
+    cancelButtonText: 'Cancelar',
+    confirmButtonColor: '#0284c7',
+    inputValidator: (value) => {
+      if (!value) {
+        return 'Debe ingresar un código para buscar';
+      }
+    }
+  }).then((result) => {
+    if (result.isConfirmed && result.value) {
+      showSection('busqueda');
+      const searchInp = document.getElementById('searchInput');
+      if (searchInp) {
+        searchInp.value = result.value;
+        ejecutarBusqueda();
+      }
+    }
+  });
+}
 
 // ==========================================
 // 6. WORKFLOWS Y AUDITORÍA

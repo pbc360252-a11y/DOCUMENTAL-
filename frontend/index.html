@@ -10,6 +10,7 @@
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 </head>
 <body>
 
@@ -547,12 +548,42 @@
     <div class="card" style="margin-bottom:20px; border: 1px solid var(--border-medium); background: var(--bg-card); box-shadow: 0 10px 30px rgba(0,0,0,0.15);">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
         <div class="card-title" style="font-size: 1.2rem; font-weight:800; color: var(--accent-primary);"><i class="fas fa-cubes"></i> Tablero del Mapa de Archivo Físico Voxelsera (Estanterías A1 - D9)</div>
-        <div style="display: flex; gap: 14px; align-items: center;">
-          <span class="badge badge-active">● Ocupado con Documentos</span>
-          <span class="badge" style="background: var(--bg-elevated); color: var(--text-muted); border: 1px solid var(--border-medium);">○ Compartimento Disponible</span>
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+          <span class="badge badge-active">● Ocupado</span>
+          <span class="badge" style="background: var(--bg-elevated); color: var(--text-muted); border: 1px solid var(--border-medium);">○ Disponible</span>
+          <button class="btn btn-sm btn-ghost" onclick="abrirEscanerCamaraQR()" title="Escanear etiqueta QR física con la cámara"><i class="fas fa-qrcode"></i> Escanear QR</button>
           <button class="btn btn-sm btn-ghost" onclick="cargarMapaArchivo()"><i class="fas fa-sync-alt"></i> Actualizar Mapa</button>
         </div>
       </div>
+
+      <!-- Voxelsera BI Capacidad por Estante -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px; padding: 12px; background: var(--bg-elevated); border-radius: var(--r-md); border: 1px solid var(--border-subtle);" id="voxelseraCapacidadBI">
+        <div>
+          <div style="display:flex;justify-space-between;font-size:0.75rem;font-weight:700;color:var(--text-secondary);margin-bottom:4px">
+            <span>📋 Estante A (Minutas)</span> <strong id="voxA_pct">82%</strong>
+          </div>
+          <div style="height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden"><div id="voxA_bar" style="width:82%;height:100%;background:var(--accent-primary)"></div></div>
+        </div>
+        <div>
+          <div style="display:flex;justify-space-between;font-size:0.75rem;font-weight:700;color:var(--text-secondary);margin-bottom:4px">
+            <span>🤝 Estante B (Asociados)</span> <strong id="voxB_pct">95%</strong>
+          </div>
+          <div style="height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden"><div id="voxB_bar" style="width:95%;height:100%;background:#e11d48"></div></div>
+        </div>
+        <div>
+          <div style="display:flex;justify-space-between;font-size:0.75rem;font-weight:700;color:var(--text-secondary);margin-bottom:4px">
+            <span>📑 Estante C (Contratos #362)</span> <strong id="voxC_pct">53%</strong>
+          </div>
+          <div style="height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden"><div id="voxC_bar" style="width:53%;height:100%;background:#10b981"></div></div>
+        </div>
+        <div>
+          <div style="display:flex;justify-space-between;font-size:0.75rem;font-weight:700;color:var(--text-secondary);margin-bottom:4px">
+            <span>📧 Estante D (Correspondencia)</span> <strong id="voxD_pct">40%</strong>
+          </div>
+          <div style="height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden"><div id="voxD_bar" style="width:40%;height:100%;background:#f59e0b"></div></div>
+        </div>
+      </div>
+
       <div class="mapa-grid" id="mapaArchivo"></div>
     </div>
 
@@ -730,6 +761,53 @@
         <button type="button" class="btn btn-ghost" onclick="document.getElementById('modalUsuario').classList.remove('show')">CANCELAR</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- MODAL GENERADOR Y IMPRESIÓN DE ETIQUETA QR FÍSICA -->
+<div class="modal-ov" id="modalEtiquetaQR">
+  <div class="modal-box" style="max-width: 480px;">
+    <div class="modal-hdr" style="border-bottom: 1px solid var(--border-medium); padding-bottom: 10px;">
+      <span class="card-title" style="font-size: 1.1rem; color: var(--accent-primary);"><i class="fas fa-qrcode"></i> Etiqueta Adhesiva QR para Carpeta Física</span>
+      <button class="topbar-btn" onclick="document.getElementById('modalEtiquetaQR').classList.remove('show')"><i class="fas fa-times"></i></button>
+    </div>
+    <div style="padding: 20px; text-align: center;" id="etiquetaPrintArea">
+      <div style="border: 2px dashed var(--accent-primary); padding: 18px; border-radius: 12px; background: #ffffff; color: #000000; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 8px;">
+          <img src="logo.png" style="height: 28px; object-fit: contain;" alt="Coraza Logo">
+          <div style="font-weight: 800; font-size: 0.85rem; color: #000; text-transform: uppercase;">CORAZA SEGURIDAD C.T.A.</div>
+        </div>
+        <div style="font-size: 0.72rem; font-weight: 700; color: #475569; letter-spacing: 0.5px; margin-bottom: 12px;" id="qrLabelModulo">CUSTODIA DOCUMENTAL FISICA</div>
+        <div id="qrCanvasBox" style="display: flex; justify-content: center; margin: 10px 0;"></div>
+        <div style="font-size: 1.4rem; font-weight: 900; color: #0284c7; margin-top: 8px;" id="qrLabelCodigo">#362</div>
+        <div style="font-size: 0.85rem; font-weight: 800; color: #0f172a; margin-top: 2px;" id="qrLabelTitulo">CONJUNTO RESIDENCIAL TIERRA GRATA CUMBRES P.H.</div>
+        <div style="font-size: 0.75rem; font-weight: 700; color: #64748b; margin-top: 2px;" id="qrLabelSub">Estante C · Voxelsera</div>
+      </div>
+    </div>
+    <div style="display: flex; gap: 10px; padding: 10px 20px 20px 20px;">
+      <button class="btn btn-primary" style="flex: 1; justify-content: center;" onclick="imprimirEtiquetaQR()"><i class="fas fa-print"></i> IMPRIMIR ETIQUETA</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('modalEtiquetaQR').classList.remove('show')">CERRAR</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL VISOR INTEGRADO DE PDF Y DOCUMENTOS DIGITALES -->
+<div class="modal-ov" id="modalVisorPDF">
+  <div class="modal-box" style="max-width: 900px; width: 92vw; height: 88vh; display: flex; flex-direction: column;">
+    <div class="modal-hdr" style="border-bottom: 1px solid var(--border-medium); padding-bottom: 10px;">
+      <span class="card-title" style="font-size: 1.1rem; color: var(--accent-primary);"><i class="fas fa-file-pdf"></i> Visor Digital de Documento</span>
+      <button class="topbar-btn" onclick="document.getElementById('modalVisorPDF').classList.remove('show')"><i class="fas fa-times"></i></button>
+    </div>
+    <div style="flex: 1; position: relative; background: #1e293b; border-radius: 8px; margin: 12px 0; overflow: hidden;" id="pdfIframeBox">
+      <iframe id="pdfFrame" style="width: 100%; height: 100%; border: none;" src="about:blank"></iframe>
+    </div>
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <span id="pdfViewerTitle" style="font-size: 0.85rem; font-weight: 700; color: var(--text-secondary);">Documento Digitalizado</span>
+      <div style="display: flex; gap: 8px;">
+        <a id="btnPdfDownload" class="btn btn-primary btn-sm" target="_blank" download><i class="fas fa-download"></i> Descargar PDF</a>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('modalVisorPDF').classList.remove('show')">Cerrar</button>
+      </div>
+    </div>
   </div>
 </div>
 
