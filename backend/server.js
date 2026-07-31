@@ -632,87 +632,196 @@ app.delete('/api/biblioteca/archivos/:id', autenticarToken, async (req, res) => 
 app.get('/api/busqueda', autenticarToken, async (req, res) => {
   const { query } = req.query;
   try {
-    const searchVal = `%${query || ''}%`;
-    const numVal = parseInt(query) || 0;
+    const rawQuery = (query || '').trim();
+    if (!rawQuery) {
+      return res.json({ success: true, resultados: [], total: 0 });
+    }
+
+    const cleanQuery = rawQuery.replace(/^#/, '').trim();
+    const words = cleanQuery.split(/\s+/).filter(w => w.length > 0);
     const resultados = [];
 
-    // 1. Minutas
-    const minutas = await db.query(
-      `SELECT id, tipo_minuta, nombre_puesto, codigo_unico, voxelsera, fecha_registro FROM minutas 
-       WHERE codigo_unico ILIKE $1 OR nombre_puesto ILIKE $1 OR voxelsera ILIKE $1 OR codigo_numerico = $2 LIMIT 50`,
-      [searchVal, numVal]
-    );
-    minutas.rows.forEach(r => resultados.push({
-      modulo: '📋 MINUTAS',
-      titulo: `${r.tipo_minuta} - ${r.nombre_puesto}`,
-      codigo: r.codigo_unico,
-      fecha: r.fecha_registro,
-      id: r.id,
-      detalles: { VOXELSERA: r.voxelsera }
-    }));
+    function buildMultiWordWhere(cols) {
+      const conditions = [];
+      const params = [];
+      let idx = 1;
 
-    // 2. Correspondencia
-    const corr = await db.query(
-      `SELECT id, codigo_documento, depto_origen, depto_destino, asunto, detalle, voxelsera, fecha_registro FROM correspondencia 
-       WHERE codigo_documento ILIKE $1 OR asunto ILIKE $1 OR detalle ILIKE $1 OR depto_origen ILIKE $1 OR voxelsera ILIKE $1 LIMIT 50`,
-      [searchVal]
-    );
-    corr.rows.forEach(r => resultados.push({
-      modulo: '📧 CORRESPONDENCIA',
-      titulo: `[${r.depto_origen}] ${r.asunto}`,
-      codigo: r.codigo_documento,
-      fecha: r.fecha_registro,
-      id: r.id,
-      detalles: { VOXELSERA: r.voxelsera, DESTINO: r.depto_destino }
-    }));
+      words.forEach(word => {
+        params.push(`%${word}%`);
+        const colLikes = cols.map(col => `${col} ILIKE $${idx}`).join(' OR ');
+        conditions.push(`(${colLikes})`);
+        idx++;
+      });
 
-    // 3. Contratos
-    const contratos = await db.query(
-      `SELECT id, tipo_contrato, numero_contrato, parte_a, parte_b, objeto_contrato, voxelsera, fecha_registro FROM contratos 
-       WHERE numero_contrato ILIKE $1 OR parte_a ILIKE $1 OR parte_b ILIKE $1 OR objeto_contrato ILIKE $1 OR voxelsera ILIKE $1 LIMIT 50`,
-      [searchVal]
-    );
-    contratos.rows.forEach(r => resultados.push({
+      return {
+        whereClause: conditions.join(' AND '),
+        params
+      };
+    }
+
+    // 1. CONTRATOS (NIT, N° Carpeta #, N° Contrato, Cliente, Fechas, Ubicación, Hoja Origen)
+    const colContratos = [
+      "COALESCE(parte_b, '')",
+      "COALESCE(nit, '')",
+      "COALESCE(numero_contrato, '')",
+      "COALESCE(id, '')",
+      "COALESCE(codigo_numerico::text, '')",
+      "COALESCE(parte_a, '')",
+      "COALESCE(objeto_contrato, '')",
+      "COALESCE(tipo_contrato, '')",
+      "COALESCE(voxelsera, '')",
+      "COALESCE(hoja_origen, '')",
+      "COALESCE(estado, '')"
+    ];
+    const qContratos = buildMultiWordWhere(colContratos);
+    const sqlContratos = `
+      SELECT id, tipo_contrato, numero_contrato, codigo_numerico, parte_a, parte_b, nit, objeto_contrato, voxelsera, estado, hoja_origen, fecha_inicio, fecha_fin, fecha_registro 
+      FROM contratos 
+      WHERE ${qContratos.whereClause} 
+      ORDER BY codigo_numerico ASC NULLS LAST 
+      LIMIT 80
+    `;
+    const resContratos = await db.query(sqlContratos, qContratos.params);
+    resContratos.rows.forEach(r => resultados.push({
       modulo: '📑 CONTRATOS',
-      titulo: `${r.tipo_contrato} (${r.parte_a} - ${r.parte_b})`,
-      codigo: r.numero_contrato,
-      fecha: r.fecha_registro,
+      titulo: `${r.parte_b || r.tipo_contrato} ${r.nit ? ' (NIT: ' + r.nit + ')' : ''}`,
+      codigo: `#${r.codigo_numerico || 'S/N'} · Contrato: ${r.numero_contrato || r.id}`,
+      fecha: r.fecha_inicio ? String(r.fecha_inicio).substring(0, 10) : (r.fecha_registro ? String(r.fecha_registro).substring(0, 10) : 'N/A'),
       id: r.id,
-      detalles: { VOXELSERA: r.voxelsera, OBJETO: r.objeto_contrato }
+      detalles: {
+        VOXELSERA: r.voxelsera ? (r.voxelsera.startsWith('VOXEL_') ? r.voxelsera : `VOXEL_${r.voxelsera}`) : 'C',
+        NIT: r.nit || 'N/A',
+        CLIENTE: r.parte_b,
+        NUM_CONTRATO: r.numero_contrato,
+        CARPETA_NUM: r.codigo_numerico ? `#${r.codigo_numerico}` : 'N/A',
+        TIPO_SERVICIO: r.tipo_contrato,
+        ESTADO: r.estado,
+        FECHAS: `${r.fecha_inicio ? String(r.fecha_inicio).substring(0, 10) : 'N/A'} a ${r.fecha_fin ? String(r.fecha_fin).substring(0, 10) : 'Indefinido'}`
+      }
     }));
 
-    // 4. Asociados Retirados (Personal Inactivo)
-    const asociados = await db.query(
-      `SELECT id, nombre_completo, cedula, motivo_baja, voxelsera, fecha_baja FROM personal_inactivo 
-       WHERE nombre_completo ILIKE $1 OR cedula ILIKE $1 OR motivo_baja ILIKE $1 OR voxelsera ILIKE $1 LIMIT 50`,
-      [searchVal]
-    );
-    asociados.rows.forEach(r => resultados.push({
+    // 2. CORRESPONDENCIA
+    const colCorr = [
+      "COALESCE(codigo_documento, '')",
+      "COALESCE(asunto, '')",
+      "COALESCE(detalle, '')",
+      "COALESCE(depto_origen, '')",
+      "COALESCE(depto_destino, '')",
+      "COALESCE(tipo_documento, '')",
+      "COALESCE(voxelsera, '')",
+      "COALESCE(codigo_numerico::text, '')"
+    ];
+    const qCorr = buildMultiWordWhere(colCorr);
+    const sqlCorr = `
+      SELECT id, codigo_documento, codigo_numerico, depto_origen, depto_destino, asunto, detalle, voxelsera, fecha_registro 
+      FROM correspondencia 
+      WHERE ${qCorr.whereClause} 
+      LIMIT 50
+    `;
+    const resCorr = await db.query(sqlCorr, qCorr.params);
+    resCorr.rows.forEach(r => resultados.push({
+      modulo: '📧 CORRESPONDENCIA',
+      titulo: `[${r.depto_origen || 'GENERAL'} → ${r.depto_destino || 'DESTINO'}] ${r.asunto || r.detalle || 'Sin asunto'}`,
+      codigo: r.codigo_documento || (r.codigo_numerico ? `#${r.codigo_numerico}` : r.id),
+      fecha: r.fecha_registro ? String(r.fecha_registro).substring(0, 10) : 'N/A',
+      id: r.id,
+      detalles: { 
+        VOXELSERA: r.voxelsera ? (r.voxelsera.startsWith('VOXEL_') ? r.voxelsera : `VOXEL_${r.voxelsera}`) : 'D',
+        ORIGEN: r.depto_origen,
+        DESTINO: r.depto_destino,
+        ASUNTO: r.asunto
+      }
+    }));
+
+    // 3. MINUTAS DE PUESTO
+    const colMin = [
+      "COALESCE(codigo_unico, '')",
+      "COALESCE(tipo_minuta, '')",
+      "COALESCE(nombre_puesto, '')",
+      "COALESCE(observaciones, '')",
+      "COALESCE(responsable, '')",
+      "COALESCE(voxelsera, '')",
+      "COALESCE(codigo_numerico::text, '')"
+    ];
+    const qMin = buildMultiWordWhere(colMin);
+    const sqlMin = `
+      SELECT id, tipo_minuta, nombre_puesto, codigo_unico, codigo_numerico, observaciones, voxelsera, fecha_registro 
+      FROM minutas 
+      WHERE ${qMin.whereClause} 
+      LIMIT 50
+    `;
+    const resMin = await db.query(sqlMin, qMin.params);
+    resMin.rows.forEach(r => resultados.push({
+      modulo: '📋 MINUTAS',
+      titulo: `${r.tipo_minuta || 'Minuta'} - ${r.nombre_puesto || 'Puesto'}`,
+      codigo: r.codigo_unico || (r.codigo_numerico ? `#${r.codigo_numerico}` : r.id),
+      fecha: r.fecha_registro ? String(r.fecha_registro).substring(0, 10) : 'N/A',
+      id: r.id,
+      detalles: { 
+        VOXELSERA: r.voxelsera ? (r.voxelsera.startsWith('VOXEL_') ? r.voxelsera : `VOXEL_${r.voxelsera}`) : 'A',
+        PUESTO: r.nombre_puesto,
+        OBSERVACIONES: r.observaciones
+      }
+    }));
+
+    // 4. ASOCIADOS RETIRADOS (PERSONAL INACTIVO)
+    const colPers = [
+      "COALESCE(nombre_completo, '')",
+      "COALESCE(cedula, '')",
+      "COALESCE(motivo_baja, '')",
+      "COALESCE(observaciones, '')",
+      "COALESCE(voxelsera, '')",
+      "COALESCE(codigo_numerico::text, '')"
+    ];
+    const qPers = buildMultiWordWhere(colPers);
+    const sqlPers = `
+      SELECT id, nombre_completo, cedula, motivo_baja, voxelsera, fecha_baja, codigo_numerico 
+      FROM personal_inactivo 
+      WHERE ${qPers.whereClause} 
+      LIMIT 50
+    `;
+    const resPers = await db.query(sqlPers, qPers.params);
+    resPers.rows.forEach(r => resultados.push({
       modulo: '🤝 ASOCIADOS RETIRADOS',
-      titulo: `${r.nombre_completo} (Motivo: ${r.motivo_baja || 'N/A'})`,
-      codigo: `CC: ${r.cedula}`,
-      fecha: r.fecha_baja,
+      titulo: `${r.nombre_completo} (Cédula: ${r.cedula || 'N/A'})`,
+      codigo: r.codigo_numerico ? `Carpeta #${r.codigo_numerico}` : `CC: ${r.cedula}`,
+      fecha: r.fecha_baja ? String(r.fecha_baja).substring(0, 10) : 'N/A',
       id: r.id,
-      detalles: { VOXELSERA: r.voxelsera, CEDULA: r.cedula }
+      detalles: { 
+        VOXELSERA: r.voxelsera ? (r.voxelsera.startsWith('VOXEL_') ? r.voxelsera : `VOXEL_${r.voxelsera}`) : 'B',
+        CEDULA: r.cedula,
+        MOTIVO_BAJA: r.motivo_baja || 'N/A'
+      }
     }));
 
-    // 5. Préstamos
-    const prestamos = await db.query(
-      `SELECT id, solicitante, departamento, documento, codigo_documento, fecha_prestamo, estado FROM prestamos 
-       WHERE solicitante ILIKE $1 OR documento ILIKE $1 OR codigo_documento ILIKE $1 OR departamento ILIKE $1 LIMIT 50`,
-      [searchVal]
-    );
-    prestamos.rows.forEach(r => resultados.push({
+    // 5. PRESTAMOS
+    const colPrest = [
+      "COALESCE(solicitante, '')",
+      "COALESCE(departamento, '')",
+      "COALESCE(documento, '')",
+      "COALESCE(codigo_documento, '')",
+      "COALESCE(estado, '')"
+    ];
+    const qPrest = buildMultiWordWhere(colPrest);
+    const sqlPrest = `
+      SELECT id, solicitante, departamento, documento, codigo_documento, fecha_prestamo, estado 
+      FROM prestamos 
+      WHERE ${qPrest.whereClause} 
+      LIMIT 50
+    `;
+    const resPrest = await db.query(sqlPrest, qPrest.params);
+    resPrest.rows.forEach(r => resultados.push({
       modulo: '🔄 PRESTAMOS',
-      titulo: `[${r.estado}] Solicitante: ${r.solicitante} (${r.documento})`,
+      titulo: `[${r.estado || 'PRESTADO'}] Solicitante: ${r.solicitante} (${r.departamento})`,
       codigo: r.codigo_documento || r.id,
-      fecha: r.fecha_prestamo,
+      fecha: r.fecha_prestamo ? String(r.fecha_prestamo).substring(0, 10) : 'N/A',
       id: r.id,
-      detalles: { ESTADO: r.estado, DEPTO: r.departamento }
+      detalles: { ESTADO: r.estado, DEPTO: r.departamento, DOCUMENTO: r.documento }
     }));
 
     res.json({ success: true, resultados, total: resultados.length });
   } catch(e) {
+    console.error('Error en /api/busqueda:', e);
     res.status(500).json({ success: false, message: e.message });
   }
 });

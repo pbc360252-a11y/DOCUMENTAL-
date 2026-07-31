@@ -1069,9 +1069,32 @@ function iluminarUbicacionFisica(slotId) {
 }
 
 function busquedaInstantanea() {
+  const inp = document.getElementById('searchInput');
+  const btnClear = document.getElementById('btnClearSearch');
+  if (btnClear) {
+    btnClear.style.display = (inp && inp.value.trim().length > 0) ? 'inline-block' : 'none';
+  }
   clearTimeout(window.searchTimeout);
-  window.searchTimeout = setTimeout(ejecutarBusqueda, 300);
+  window.searchTimeout = setTimeout(ejecutarBusqueda, 100);
 }
+
+function limpiarBusquedaInput() {
+  const inp = document.getElementById('searchInput');
+  const btnClear = document.getElementById('btnClearSearch');
+  if (inp) inp.value = '';
+  if (btnClear) btnClear.style.display = 'none';
+  ejecutarBusqueda();
+}
+
+// Atajo global de teclado (Ctrl + K o / para ir directo a la búsqueda)
+document.addEventListener('keydown', function(e) {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+    e.preventDefault();
+    showSection('busqueda');
+    const inp = document.getElementById('searchInput');
+    if (inp) { inp.focus(); inp.select(); }
+  }
+});
 
 // ==========================================
 // 6. WORKFLOWS Y AUDITORÍA
@@ -2003,21 +2026,35 @@ function renderContratos(lista) {
 }
 
 function filtrarContratos() {
-  const query = (document.getElementById('filtroContratos')?.value || '').toLowerCase().trim();
-  if (!query) {
+  const queryRaw = (document.getElementById('filtroContratos')?.value || '').trim();
+  if (!queryRaw) {
     renderContratos(window.todosLosContratos);
     return;
   }
 
-  const filtrados = window.todosLosContratos.filter(c => {
-    const num = String(c.codigo_numerico || '').toLowerCase();
-    const doc = String(c.numero_contrato || c.id || '').toLowerCase();
-    const pA = String(c.parte_a || '').toLowerCase();
-    const pB = String(c.parte_b || '').toLowerCase();
-    const nit = String(c.nit || '').toLowerCase();
-    const obj = String(c.objeto_contrato || '').toLowerCase();
+  const cleanQuery = queryRaw.replace(/^#/, '').toLowerCase();
+  const words = cleanQuery.split(/\s+/).filter(w => w.length > 0);
 
-    return num.includes(query) || doc.includes(query) || pA.includes(query) || pB.includes(query) || nit.includes(query) || obj.includes(query);
+  const filtrados = window.todosLosContratos.filter(c => {
+    const fullText = [
+      c.parte_b || '',
+      c.nit || '',
+      c.numero_contrato || '',
+      c.codigo_numerico ? `#${c.codigo_numerico}` : '',
+      c.codigo_numerico || '',
+      c.id || '',
+      c.parte_a || '',
+      c.objeto_contrato || '',
+      c.tipo_contrato || '',
+      c.voxelsera || '',
+      c.hoja_origen || '',
+      c.estado || '',
+      c.fecha_inicio || '',
+      c.fecha_fin || ''
+    ].join(' ').toLowerCase();
+
+    // Debe coincidir con todas las palabras buscadas
+    return words.every(word => fullText.includes(word));
   });
 
   renderContratos(filtrados);
