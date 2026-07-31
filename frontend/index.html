@@ -767,58 +767,87 @@
 
 <!-- MODAL GENERADOR E IMPRESIÓN DE LOMO DE CARPETA Y ETIQUETA QR -->
 <div class="modal-ov" id="modalEtiquetaQR">
-  <div class="modal-box" style="max-width: 540px; max-height: 90vh; display: flex; flex-direction: column;">
+  <div class="modal-box" style="max-width: 620px; max-height: 92vh; display: flex; flex-direction: column;">
     <div class="modal-hdr" style="border-bottom: 1px solid var(--border-medium); padding-bottom: 10px;">
-      <span class="card-title" style="font-size: 1.1rem; color: var(--accent-primary);"><i class="fas fa-print"></i> Etiqueta e Identificador de Lomo de Carpeta</span>
+      <span class="card-title" style="font-size: 1.1rem; color: var(--accent-primary);"><i class="fas fa-print"></i> Generador de Identificadores Físicos (Imprimir / Cortar y Pegar)</span>
       <button class="topbar-btn" onclick="document.getElementById('modalEtiquetaQR').classList.remove('show')"><i class="fas fa-times"></i></button>
     </div>
 
-    <!-- Pestañas de Formato -->
-    <div style="display: flex; gap: 8px; margin: 12px 0 6px 0;">
-      <button class="btn btn-sm btn-primary" id="btnFormatoLomo" onclick="cambiarFormatoEtiqueta('LOMO')"><i class="fas fa-grip-lines-vertical"></i> TIRA DE LOMO FÍSICO (Cortar y Pegar)</button>
-      <button class="btn btn-sm btn-ghost" id="btnFormatoFrente" onclick="cambiarFormatoEtiqueta('FRENTE')"><i class="fas fa-qrcode"></i> ETIQUETA QR CUADRADA</button>
+    <!-- Pestañas de Formato según Foto 1 y Foto 2 -->
+    <div style="display: flex; gap: 6px; margin: 12px 0 6px 0; flex-wrap: wrap;">
+      <button class="btn btn-sm btn-primary" id="btnFormatoLegajadora" onclick="cambiarFormatoEtiqueta('LEGAJADORA')"><i class="fas fa-folder-open"></i> CARPETA LEGAJADORA AZUL (Contratos y Retirados - Foto 2)</button>
+      <button class="btn btn-sm btn-ghost" id="btnFormatoLomo" onclick="cambiarFormatoEtiqueta('LOMO')"><i class="fas fa-book"></i> LIBRO DE MINUTAS (Foto 1)</button>
+      <button class="btn btn-sm btn-ghost" id="btnFormatoFrente" onclick="cambiarFormatoEtiqueta('FRENTE')"><i class="fas fa-qrcode"></i> ETIQUETA QR</button>
     </div>
 
     <div style="padding: 14px 0; overflow-y: auto; flex: 1; display: flex; justify-content: center; align-items: flex-start; min-height: 0;" id="etiquetaPrintArea">
       
-      <!-- FORMATO 1: TIRA VERTICAL PARA LOMO DE CARPETA (EXACTAMENTE COMO LA FOTO DEL ESTANTE) -->
-      <div id="vistaFormatoLomo" style="border: 2px dashed #0284c7; padding: 10px; background: #ffffff; color: #000000; width: 140px; min-height: 480px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); display: flex; flex-direction: column; align-items: center; justify-content: space-between; border-radius: 6px; position: relative;">
-        <div style="font-size: 0.62rem; color: #64748b; font-weight: 700; position: absolute; top: -18px; left: 0; right: 0; text-align: center; text-transform: uppercase;">✂️ Línea de corte para lomo</div>
+      <!-- FORMATO 1: CARPETA LEGAJADORA AZUL (EXACTAMENTE COMO LA FOTO 2 DE CONTRATOS Y RETIRADOS) -->
+      <div id="vistaFormatoLegajadora" style="border: 2px dashed #0284c7; padding: 14px; background: #ffffff; color: #000000; width: 440px; min-height: 220px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); border-radius: 8px; position: relative;">
+        <div style="font-size: 0.62rem; color: #64748b; font-weight: 700; position: absolute; top: -18px; left: 0; right: 0; text-align: center; text-transform: uppercase;">✂️ Tira de Pestaña Inferior y Lateral para Carpeta Azul (Cortar y Pegar)</div>
 
-        <!-- CÓDIGO GIGANTE SUPERIOR (Ej: 362) -->
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
+          <!-- CUERPO PRINCIPAL HORIZONTAL (LENGÜETA INFERIOR) -->
+          <div style="flex: 1; border: 2px solid #0f172a; padding: 10px; border-radius: 6px; background: #f8fafc;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0f172a; padding-bottom: 4px; margin-bottom: 6px;">
+              <span style="font-size: 0.65rem; font-weight: 900; color: #0284c7; text-transform: uppercase;" id="legModuloUbic">CONTRATOS · ESTANTE C</span>
+              <span style="font-size: 0.62rem; font-weight: 800; color: #475569;" id="legNitDoc">NIT: 900458819-6</span>
+            </div>
+
+            <div style="font-size: 0.95rem; font-weight: 900; color: #0f172a; line-height: 1.25; margin-bottom: 6px; text-transform: uppercase;" id="legTituloCliente">
+              CONJUNTO RESIDENCIAL TIERRA GRATA CUMBRES P.H.
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.72rem; font-weight: 700; color: #334155; border-top: 1px solid #cbd5e1; padding-top: 4px;">
+              <span id="legFechas">01/12/2011 -- 01/12/2024</span>
+              <span id="legEstadoObs" style="font-weight: 800; color: #0284c7;">Finaliza: Acta Liquidación</span>
+            </div>
+          </div>
+
+          <!-- PESTAÑA LATERAL DERECHA CON NÚMERO GIGANTE (FOTO 2: #346 o #362) -->
+          <div style="width: 85px; height: 160px; border: 3px solid #0284c7; background: #eff6ff; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 6px; text-align: center;">
+            <div style="font-size: 0.55rem; font-weight: 800; color: #1e40af;">CÓDIGO</div>
+            <div style="font-size: 2rem; font-weight: 900; color: #0284c7; line-height: 1;" id="legCodigoNum">362</div>
+            <div id="legQrCanvas" style="display: flex; justify-content: center;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FORMATO 2: TIRA VERTICAL PARA LIBRO DE MINUTAS (FOTO 1) -->
+      <div id="vistaFormatoLomo" style="display: none; border: 2px dashed #0284c7; padding: 10px; background: #ffffff; color: #000000; width: 140px; min-height: 460px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); flex-direction: column; align-items: center; justify-content: space-between; border-radius: 6px; position: relative;">
+        <div style="font-size: 0.62rem; color: #64748b; font-weight: 700; position: absolute; top: -18px; left: 0; right: 0; text-align: center; text-transform: uppercase;">✂️ Línea de corte para lomo de libro de minutas</div>
+
         <div style="width: 100%; text-align: center; border-bottom: 3px solid #0f172a; padding-bottom: 6px; margin-bottom: 8px;">
           <div style="font-size: 0.58rem; font-weight: 800; color: #64748b; text-transform: uppercase;" id="lomoHeaderEmpresa">CORAZA C.T.A.</div>
           <div style="font-size: 2.2rem; font-weight: 900; color: #0284c7; line-height: 1;" id="lomoCodigoNum">#362</div>
         </div>
 
-        <!-- TEXTO VERTICAL / APILADO EN EL CUERPO DEL LOMO -->
         <div style="flex: 1; width: 100%; display: flex; flex-direction: column; justify-content: space-around; text-align: center; padding: 4px 0; gap: 8px;">
           <div style="font-size: 0.82rem; font-weight: 900; color: #0f172a; line-height: 1.25; word-break: break-word; text-transform: uppercase;" id="lomoTituloCliente">
-            CONJUNTO RESIDENCIAL TIERRA GRATA CUMBRES P.H.
+            MINUTA PUESTO DE CONTROL
           </div>
           
           <div style="border-top: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; padding: 4px 0;">
-            <div style="font-size: 0.68rem; font-weight: 800; color: #334155;" id="lomoNitDoc">NIT: 900458819-6</div>
-            <div style="font-size: 0.65rem; font-weight: 700; color: #475569;" id="lomoContratoNum">Contrato N° 25</div>
+            <div style="font-size: 0.68rem; font-weight: 800; color: #334155;" id="lomoNitDoc">LIBRO N° 1</div>
+            <div style="font-size: 0.65rem; font-weight: 700; color: #475569;" id="lomoContratoNum">MINUTAS DE PUESTO</div>
           </div>
 
           <div style="font-size: 0.68rem; font-weight: 700; color: #1e293b; background: #f1f5f9; padding: 3px; border-radius: 4px;" id="lomoFechas">
-            01/12/2011 -- 01/12/2024
+            01/01/2026 -- 31/12/2026
           </div>
 
           <div style="font-size: 0.65rem; font-weight: 800; color: #0284c7; text-transform: uppercase;" id="lomoModuloUbic">
-            CONTRATOS · ESTANTE C
+            MINUTAS · ESTANTE A
           </div>
         </div>
 
-        <!-- CÓDIGO QR EN LA BASE DEL LOMO -->
         <div style="width: 100%; display: flex; flex-direction: column; align-items: center; border-top: 2px solid #0f172a; padding-top: 6px; margin-top: 6px;">
           <div id="lomoQrCanvas" style="display: flex; justify-content: center;"></div>
           <div style="font-size: 0.55rem; font-weight: 800; color: #64748b; margin-top: 4px;">SGD CORAZA v8</div>
         </div>
       </div>
 
-      <!-- FORMATO 2: ETIQUETA QR CUADRADA PARA PORTADA -->
+      <!-- FORMATO 3: ETIQUETA QR CUADRADA PARA PORTADA -->
       <div id="vistaFormatoFrente" style="display: none; border: 2px dashed #0284c7; padding: 18px; border-radius: 12px; background: #ffffff; color: #000000; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); max-width: 320px;">
         <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 8px;">
           <img src="logo.png" style="height: 26px; object-fit: contain;" alt="Coraza Logo">
@@ -834,7 +863,7 @@
     </div>
 
     <div style="display: flex; gap: 10px; border-top: 1px solid var(--border-medium); padding-top: 12px; margin-top: 6px;">
-      <button class="btn btn-primary" style="flex: 1; justify-content: center;" onclick="imprimirEtiquetaQR()"><i class="fas fa-print"></i> IMPRIMIR TIRA PARA LOMO (CORTAR Y PEGAR)</button>
+      <button class="btn btn-primary" style="flex: 1; justify-content: center;" onclick="imprimirEtiquetaQR()"><i class="fas fa-print"></i> IMPRIMIR IDENTIFICADOR FÍSICO (CORTAR Y PEGAR)</button>
       <button class="btn btn-ghost" onclick="document.getElementById('modalEtiquetaQR').classList.remove('show')">CERRAR</button>
     </div>
   </div>

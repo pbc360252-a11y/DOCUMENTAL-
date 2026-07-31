@@ -1111,34 +1111,56 @@ document.addEventListener('keydown', function(e) {
 // ==========================================
 
 function cambiarFormatoEtiqueta(formato) {
+  const vLeg = document.getElementById('vistaFormatoLegajadora');
   const vLomo = document.getElementById('vistaFormatoLomo');
   const vFrente = document.getElementById('vistaFormatoFrente');
+  
+  const btnLeg = document.getElementById('btnFormatoLegajadora');
   const btnL = document.getElementById('btnFormatoLomo');
   const btnF = document.getElementById('btnFormatoFrente');
 
-  if (formato === 'LOMO') {
+  [vLeg, vLomo, vFrente].forEach(v => { if (v) v.style.display = 'none'; });
+  [btnLeg, btnL, btnF].forEach(b => { if (b) b.className = 'btn btn-sm btn-ghost'; });
+
+  if (formato === 'LEGAJADORA') {
+    if (vLeg) vLeg.style.display = 'block';
+    if (btnLeg) btnLeg.className = 'btn btn-sm btn-primary';
+  } else if (formato === 'LOMO') {
     if (vLomo) vLomo.style.display = 'flex';
-    if (vFrente) vFrente.style.display = 'none';
     if (btnL) btnL.className = 'btn btn-sm btn-primary';
-    if (btnF) btnF.className = 'btn btn-sm btn-ghost';
   } else {
-    if (vLomo) vLomo.style.display = 'none';
     if (vFrente) vFrente.style.display = 'block';
-    if (btnL) btnL.className = 'btn btn-sm btn-ghost';
     if (btnF) btnF.className = 'btn btn-sm btn-primary';
   }
 }
 
-function generarEtiquetaQR(id, modulo, codigo, titulo, slotFisico, nit = '', numContrato = '', fechas = '') {
+function generarEtiquetaQR(id, modulo, codigo, titulo, slotFisico, nit = '', numContrato = '', fechas = '', obsEstado = '') {
   const modal = document.getElementById('modalEtiquetaQR');
   if (!modal) return;
 
-  const codFmt = codigo ? (codigo.startsWith('#') ? codigo : `#${codigo}`) : '#S/N';
+  const codClean = codigo ? String(codigo).replace(/^#/, '') : 'S/N';
+  const codFmt = `#${codClean}`;
   const modFmt = modulo || 'CUSTODIA DOCUMENTAL';
   const titFmt = titulo || 'CARPETA ARCHIVO FISICO';
   const slotFmt = slotFisico ? (slotFisico.startsWith('VOXEL_') ? slotFisico.replace('VOXEL_', '') : slotFisico) : 'ESTANTE';
 
-  // Lomo Elementos
+  // 1. CARPETA LEGAJADORA AZUL (FOTO 2)
+  const legCod = document.getElementById('legCodigoNum');
+  const legTit = document.getElementById('legTituloCliente');
+  const legNit = document.getElementById('legNitDoc');
+  const legFec = document.getElementById('legFechas');
+  const legEst = document.getElementById('legEstadoObs');
+  const legMod = document.getElementById('legModuloUbic');
+  const legBox = document.getElementById('legQrCanvas');
+
+  if (legCod) legCod.textContent = codClean;
+  if (legTit) legTit.textContent = titFmt;
+  if (legNit) legNit.textContent = nit ? `NIT/CC: ${nit}` : 'CORAZA SEGURIDAD CTA';
+  if (legFec) legFec.textContent = fechas || new Date().toISOString().substring(0, 10);
+  if (legEst) legEst.textContent = obsEstado || (numContrato ? `Contrato N° ${numContrato}` : 'Archivo Activo');
+  if (legMod) legMod.textContent = `${modFmt} · ESTANTE ${slotFmt}`;
+
+  // 2. LIBRO DE MINUTAS (FOTO 1)
   const lCod = document.getElementById('lomoCodigoNum');
   const lTit = document.getElementById('lomoTituloCliente');
   const lNit = document.getElementById('lomoNitDoc');
@@ -1149,12 +1171,12 @@ function generarEtiquetaQR(id, modulo, codigo, titulo, slotFisico, nit = '', num
 
   if (lCod) lCod.textContent = codFmt;
   if (lTit) lTit.textContent = titFmt;
-  if (lNit) lNit.textContent = nit ? `NIT: ${nit}` : 'CORAZA SEGURIDAD CTA';
+  if (lNit) lNit.textContent = nit ? `NIT/CC: ${nit}` : 'CORAZA SEGURIDAD CTA';
   if (lCont) lCont.textContent = numContrato ? `Contrato N° ${numContrato}` : modFmt;
   if (lFec) lFec.textContent = fechas || new Date().toISOString().substring(0, 10);
   if (lMod) lMod.textContent = `${modFmt} · ESTANTE ${slotFmt}`;
 
-  // Frente Elementos
+  // 3. ETIQUETA QR FRENTE
   const lblMod = document.getElementById('qrLabelModulo');
   const lblCod = document.getElementById('qrLabelCodigo');
   const lblTit = document.getElementById('qrLabelTitulo');
@@ -1166,28 +1188,34 @@ function generarEtiquetaQR(id, modulo, codigo, titulo, slotFisico, nit = '', num
   if (lblTit) lblTit.textContent = titFmt;
   if (lblSub) lblSub.textContent = `Estante ${slotFmt} · Archivo Voxelsera`;
 
-  // Renderizar QR en ambos contenedores
+  // Renderizar QR en todos los contenedores
   const payload = JSON.stringify({ id, modulo: modFmt, codigo: codFmt, slot: slotFmt, app: 'SGD_CORAZA_v8' });
   
-  [lBox, fBox].forEach(box => {
+  [legBox, lBox, fBox].forEach(box => {
     if (box) {
       box.innerHTML = '';
       if (typeof QRCode !== 'undefined') {
         new QRCode(box, {
           text: payload,
-          width: 90,
-          height: 90,
+          width: 75,
+          height: 75,
           colorDark: "#000000",
           colorLight: "#ffffff",
           correctLevel: QRCode.CorrectLevel.M
         });
       } else {
-        box.innerHTML = `<div style="font-size:0.7rem;font-weight:800;border:1px solid #000;padding:4px">${codFmt}</div>`;
+        box.innerHTML = `<div style="font-size:0.65rem;font-weight:800;border:1px solid #000;padding:2px">${codClean}</div>`;
       }
     }
   });
 
-  cambiarFormatoEtiqueta('LOMO');
+  // Si es Minuta abre Foto 1 (Lomo Libro), si es Contrato/Retirados abre Foto 2 (Legajadora Azul)
+  if (modFmt.toLowerCase().includes('minuta')) {
+    cambiarFormatoEtiqueta('LOMO');
+  } else {
+    cambiarFormatoEtiqueta('LEGAJADORA');
+  }
+
   modal.classList.add('show');
 }
 
