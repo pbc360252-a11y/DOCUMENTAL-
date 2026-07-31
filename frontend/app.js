@@ -114,6 +114,22 @@ function cargarInfoUsuario() {
   if (elName) elName.textContent = name;
   if (elRole) elRole.textContent = role;
   if (elAv) elAv.textContent = name.substring(0, 1).toUpperCase();
+
+  aplicarPermisosPorRol();
+}
+
+function aplicarPermisosPorRol() {
+  if (!currentUser) return;
+  const role = String(currentUser.rol || currentUser.role || '').toUpperCase();
+  const isAuxiliar = role === 'AUXILIAR';
+
+  const navSistema = document.getElementById('navLabelSistema');
+  const navUsers = document.getElementById('navItemUsuarios');
+  const navSettings = document.getElementById('navItemAjustes');
+
+  if (navUsers) navUsers.style.display = isAuxiliar ? 'none' : 'flex';
+  if (navSettings) navSettings.style.display = isAuxiliar ? 'none' : 'flex';
+  if (navSistema) navSistema.style.display = isAuxiliar ? 'none' : 'block';
 }
 
 // ==========================================
@@ -1845,6 +1861,18 @@ async function inicializarBD() {
 // ==========================================
 
 function showSection(secId) {
+  if (currentUser) {
+    const role = String(currentUser.rol || currentUser.role || '').toUpperCase();
+    if (role === 'AUXILIAR' && (secId === 'usuarios' || secId === 'ajustes')) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Función Exclusiva del Administrador Principal',
+        text: 'La sección de Usuarios y Ajustes del Sistema está reservada únicamente para el Administrador Principal.'
+      });
+      secId = 'dashboard';
+    }
+  }
+
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
   

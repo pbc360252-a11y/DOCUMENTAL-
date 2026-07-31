@@ -78,9 +78,9 @@
     <div class="nav-label">Herramientas</div>
     <button class="nav-item" onclick="showSection('busqueda')"><i class="fas fa-search"></i>Buscador Universal</button>
     <button class="nav-item" onclick="showSection('informes')"><i class="fas fa-chart-bar"></i>Informes</button>
-    <div class="nav-label">Sistema</div>
-    <button class="nav-item" onclick="showSection('usuarios')"><i class="fas fa-users-cog"></i>Usuarios</button>
-    <button class="nav-item" onclick="showSection('ajustes')"><i class="fas fa-sliders-h"></i>Ajustes</button>
+    <div class="nav-label" id="navLabelSistema">Sistema</div>
+    <button class="nav-item" id="navItemUsuarios" onclick="showSection('usuarios')"><i class="fas fa-users-cog"></i>Usuarios</button>
+    <button class="nav-item" id="navItemAjustes" onclick="showSection('ajustes')"><i class="fas fa-sliders-h"></i>Ajustes</button>
   </nav>
   <div class="sidebar-footer">
     <button class="btn-logout" onclick="cerrarSesion()"><i class="fas fa-sign-out-alt"></i>Cerrar sesión</button>

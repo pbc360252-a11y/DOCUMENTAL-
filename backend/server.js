@@ -47,6 +47,18 @@ function autenticarToken(req, res, next) {
   });
 }
 
+// Middleware de permisos estrictos para Administrador Principal
+function soloAdmin(req, res, next) {
+  const rol = (req.user && req.user.rol ? req.user.rol : '').toUpperCase();
+  if (rol === 'ADMINISTRADOR' || rol === 'ADMIN') {
+    return next();
+  }
+  return res.status(403).json({
+    success: false,
+    message: 'Acceso denegado: Función exclusiva del Administrador Principal.'
+  });
+}
+
 // Helper para obtener el consecutivo secuencial
 async function obtenerSiguienteNumeroSecuencial(tabla, columnaId, columnaDepto, deptoSigla) {
   try {
@@ -174,11 +186,11 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// Registrar nuevo usuario (Admin only)
-app.post('/api/auth/register', autenticarToken, async (req, res) => {
+// Registrar nuevo usuario (Admin Principal únicamente)
+app.post('/api/auth/registrar', autenticarToken, soloAdmin, async (req, res) => {
   const { email, password, nombre, departamento, rol } = req.body;
   try {
-    const exist = await db.query('SELECT email FROM usuarios WHERE email = $1', [email]);
+    const exist = await db.query('SELECT * FROM usuarios WHERE email = $1', [email]);
     if (exist.rows.length > 0) {
       return res.status(400).json({ success: false, message: 'El correo ya está registrado' });
     }
@@ -199,8 +211,8 @@ app.post('/api/auth/register', autenticarToken, async (req, res) => {
   }
 });
 
-// Obtener todos los usuarios
-app.get('/api/auth/usuarios', autenticarToken, async (req, res) => {
+// Obtener todos los usuarios (Admin Principal únicamente)
+app.get('/api/auth/usuarios', autenticarToken, soloAdmin, async (req, res) => {
   try {
     const resUsers = await db.query('SELECT email, nombre, departamento, estado, rol, ultimo_acceso FROM usuarios');
     res.json({ success: true, usuarios: resUsers.rows });
