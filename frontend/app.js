@@ -3127,7 +3127,7 @@ async function generarInforme() {
         <!-- ENCABEZADO GERENCIAL OFICIAL -->
         <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #0284c7;padding-bottom:20px;margin-bottom:24px">
           <div style="display:flex;align-items:center;gap:16px">
-            <img src="logo.png" style="width:70px;height:70px;border-radius:50%;border:2px solid #0284c7;object-fit:cover" alt="Logo Coraza">
+            <img src="logo.png" style="width:72px;height:72px;border-radius:50%;border:2.5px solid #f97316;object-fit:cover;transform:scale(1.08);box-shadow:0 0 15px rgba(249,115,22,0.3);background:#0f172a" alt="Logo Coraza">
             <div>
               <h2 style="margin:0;font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;color:#0f172a">CORAZA SEGURIDAD C.T.A.</h2>
               <div style="font-size:0.82rem;color:#64748b;font-weight:600">Cooperativa de Trabajo Asociado · NIT 800.123.456-7</div>
