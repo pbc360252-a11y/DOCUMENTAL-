@@ -89,6 +89,9 @@
     <span class="page-title" id="pageTitle">Dashboard</span>
     <div class="topbar-right">
       <div class="clock" id="topbarClock">--:--:--</div>
+      <button class="topbar-btn" onclick="abrirModalColaImpresion()" title="Cola de Impresión de Tiras PDF (Ahorro de Papel)" style="position:relative;background:rgba(2,132,199,0.1);color:var(--accent-primary);border:1px solid rgba(2,132,199,0.3)">
+        <i class="fas fa-print"></i> <span id="colaTirasCount" style="font-size:0.75rem;font-weight:800;background:var(--accent-primary);color:#fff;border-radius:10px;padding:1px 6px;margin-left:4px">0</span>
+      </button>
       <button class="topbar-btn" onclick="mostrarNotificaciones()" title="Notificaciones">
         <i class="fas fa-bell"></i><span class="ndot" id="notifDot"></span>
       </button>
@@ -886,6 +889,30 @@
         <a id="btnPdfDownload" class="btn btn-primary btn-sm" target="_blank" download><i class="fas fa-download"></i> Descargar PDF</a>
         <button class="btn btn-ghost btn-sm" onclick="document.getElementById('modalVisorPDF').classList.remove('show')">Cerrar</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL COLA DE IMPRESIÓN PDF (AHORRO DE PAPEL) -->
+<div class="modal-ov" id="modalColaImpresion">
+  <div class="modal-box" style="max-width: 680px; max-height: 88vh; display: flex; flex-direction: column;">
+    <div class="modal-hdr" style="border-bottom: 1px solid var(--border-medium); padding-bottom: 10px;">
+      <span class="card-title" style="font-size: 1.1rem; color: var(--accent-primary);"><i class="fas fa-print"></i> Cola de Impresión en Lote (Ahorro de Papel PDF)</span>
+      <button class="topbar-btn" onclick="document.getElementById('modalColaImpresion').classList.remove('show')"><i class="fas fa-times"></i></button>
+    </div>
+    
+    <div style="background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); padding: 10px 14px; border-radius: var(--r-md); margin-top: 10px; font-size: 0.84rem; color: var(--text-primary);">
+      💡 <strong>Cero Desperdicio de Papel:</strong> Cada vez que registras una minuta, contrato o asociado retirado, la tira de carpeta se guarda aquí automáticamente. Cuando tengas varias acumuladas, imprimes 1 sola hoja de papel con todas las tiras juntas.
+    </div>
+
+    <div style="padding: 14px 0; overflow-y: auto; flex: 1; min-height: 0;" id="bodyColaImpresion">
+      <!-- Se inyecta dinámicamente -->
+    </div>
+
+    <div style="display: flex; gap: 10px; border-top: 1px solid var(--border-medium); padding-top: 12px; margin-top: 6px;">
+      <button class="btn btn-primary" style="flex: 1; justify-content: center;" onclick="imprimirHojaPdfCola()"><i class="fas fa-file-pdf"></i> GENERAR HOJA PDF DE TIRAS (IMPRIMIR Y CORTAR)</button>
+      <button class="btn btn-ghost" style="color: #ef4444;" onclick="vaciarColaImpresion()"><i class="fas fa-trash"></i> Vaciar Cola</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('modalColaImpresion').classList.remove('show')">Cerrar</button>
     </div>
   </div>
 </div>

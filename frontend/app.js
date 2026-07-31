@@ -391,7 +391,15 @@ async function registrarMinuta(e) {
   try {
     const res = await apiCall('/api/minutas', 'POST', data);
     if (res.success) {
-      mostrarModalConfirmacion('✅ MINUTA REGISTRADA', res.codigoUnico, 'Puesto y minuta enlazados respetando el consecutivo oficial.', '📋 MINUTAS', data.nombrePuesto, data.voxelsera || 'A');
+      agregarAColaImpresion({
+        id: res.codigoUnico || res.id,
+        modulo: '📋 MINUTAS',
+        codigo: res.codigoUnico,
+        titulo: data.nombrePuesto,
+        fechas: `${data.fechaInicio || ''} -- ${data.fechaCierre || ''}`,
+        slotFisico: data.voxelsera || 'Estante A'
+      });
+      mostrarModalConfirmacion('✅ MINUTA REGISTRADA', res.codigoUnico, 'Puesto y minuta guardados en la BD y agregados a la Cola de Impresión.', '📋 MINUTAS', data.nombrePuesto, data.voxelsera || 'A');
       document.getElementById('nombrePuesto').value = '';
       document.getElementById('observacionesMinuta').value = '';
     }
@@ -414,7 +422,16 @@ async function registrarPersonal(e) {
   try {
     const res = await apiCall('/api/personal-inactivo', 'POST', data);
     if (res.success) {
-      mostrarModalConfirmacion('✅ PERSONAL INACTIVO REGISTRADO', `ID: ${res.codigo}`, 'Expediente digital guardado en el archivo central.');
+      agregarAColaImpresion({
+        id: res.codigo || res.id,
+        modulo: '🤝 ASOCIADOS RETIRADOS',
+        codigo: res.codigo,
+        titulo: data.nombre,
+        nit: data.cedula,
+        fechas: data.fechaBaja ? `Retiro: ${data.fechaBaja}` : '',
+        slotFisico: 'Estante B'
+      });
+      mostrarModalConfirmacion('✅ PERSONAL INACTIVO REGISTRADO', `ID: ${res.codigo}`, 'Expediente guardado en BD y agregado a la Cola de Impresión.', '🤝 ASOCIADOS RETIRADOS', data.nombre, 'B');
       document.getElementById('nombrePersonal').value = '';
       document.getElementById('cedula').value = '';
       document.getElementById('observacionesPersonal').value = '';
@@ -1381,8 +1398,181 @@ function abrirEscanerCamaraQR() {
 }
 
 // ==========================================
-// 6. WORKFLOWS Y AUDITORÍA
+// COLA DE IMPRESIÓN PDF (AHORRO DE PAPEL)
 // ==========================================
+window.colaImpresionTiras = JSON.parse(localStorage.getItem('colaTirasCoraza') || '[]');
+
+function actualizarBadgeCola() {
+  const cnt = document.getElementById('colaTirasCount');
+  if (cnt) {
+    cnt.textContent = window.colaImpresionTiras ? window.colaImpresionTiras.length : 0;
+  }
+}
+
+function agregarAColaImpresion(item) {
+  if (!window.colaImpresionTiras) window.colaImpresionTiras = [];
+  
+  // Evitar duplicados por ID
+  const existe = window.colaImpresionTiras.some(i => i.id === item.id && i.modulo === item.modulo);
+  if (!existe) {
+    window.colaImpresionTiras.push(item);
+    localStorage.setItem('colaTirasCoraza', JSON.stringify(window.colaImpresionTiras));
+    actualizarBadgeCola();
+  }
+}
+
+function quitarDeColaImpresion(idx) {
+  if (window.colaImpresionTiras && window.colaImpresionTiras[idx]) {
+    window.colaImpresionTiras.splice(idx, 1);
+    localStorage.setItem('colaTirasCoraza', JSON.stringify(window.colaImpresionTiras));
+    actualizarBadgeCola();
+    abrirModalColaImpresion();
+  }
+}
+
+function vaciarColaImpresion() {
+  window.colaImpresionTiras = [];
+  localStorage.setItem('colaTirasCoraza', JSON.stringify([]));
+  actualizarBadgeCola();
+  abrirModalColaImpresion();
+}
+
+function abrirModalColaImpresion() {
+  actualizarBadgeCola();
+  const modal = document.getElementById('modalColaImpresion');
+  const body = document.getElementById('bodyColaImpresion');
+  if (!modal || !body) return;
+
+  const items = window.colaImpresionTiras || [];
+  if (items.length === 0) {
+    body.innerHTML = `
+      <div style="text-align:center;padding:40px;color:var(--text-muted);background:var(--bg-elevated);border-radius:var(--r-md);border:1px dashed var(--border-medium)">
+        <i class="fas fa-print fa-2x" style="margin-bottom:10px;opacity:0.5"></i>
+        <div style="font-weight:700">La cola de impresión está vacía.</div>
+        <div style="font-size:0.8rem;margin-top:4px">Cada documento que registres se guardará aquí automáticamente para imprimir todo junto en 1 sola hoja de papel.</div>
+      </div>
+    `;
+  } else {
+    let html = `<div style="font-weight:700;font-size:0.88rem;color:var(--accent-primary);margin-bottom:10px">📄 ${items.length} tiras listas para imprimir en lote (Ahorro de Papel):</div>`;
+    html += `<div style="display:flex;flex-direction:column;gap:8px">`;
+    items.forEach((item, idx) => {
+      html += `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--bg-elevated);border:1px solid var(--border-medium);border-radius:var(--r-md)">
+          <div>
+            <span class="badge badge-info" style="font-size:0.68rem">${item.modulo}</span>
+            <strong style="margin-left:8px;font-size:1rem;color:var(--accent-primary)">#${item.codigo}</strong>
+            <span style="margin-left:10px;font-size:0.85rem;color:var(--text-primary);font-weight:600">${item.titulo}</span>
+          </div>
+          <button class="btn btn-sm btn-ghost" style="color:#ef4444" onclick="quitarDeColaImpresion(${idx})" title="Quitar de la cola"><i class="fas fa-times"></i></button>
+        </div>
+      `;
+    });
+    html += `</div>`;
+    body.innerHTML = html;
+  }
+
+  modal.classList.add('show');
+}
+
+function imprimirHojaPdfCola() {
+  const items = window.colaImpresionTiras || [];
+  if (items.length === 0) {
+    Swal.fire('Atención', 'No hay tiras acumuladas en la cola de impresión.', 'info');
+    return;
+  }
+
+  let stripsHtml = '';
+
+  items.forEach(r => {
+    const codClean = String(r.codigo || r.id || 'S/N').replace(/^#/, '');
+    const cod = `#${codClean}`;
+    const tit = (r.titulo || 'REGISTRO').toUpperCase();
+    const nit = r.nit || '';
+    const num = r.numContrato || '';
+    const fec = r.fechas || '';
+    const slot = r.slotFisico || 'ESTANTE C';
+    const esMinuta = r.modulo && r.modulo.toLowerCase().includes('minuta');
+
+    if (esMinuta) {
+      // Foto 1: Libro Minuta
+      stripsHtml += `
+        <div style="border: 2px dashed #000; width: 130px; height: 390px; padding: 8px; margin: 6px; float: left; display: flex; flex-direction: column; justify-content: space-between; align-items: center; text-align: center; page-break-inside: avoid; border-radius: 4px; background: #fff;">
+          <div style="width: 100%; border-bottom: 2px solid #000; padding-bottom: 4px;">
+            <div style="font-size: 0.55rem; font-weight: 800;">CORAZA C.T.A.</div>
+            <div style="font-size: 1.8rem; font-weight: 900; color: #0284c7;">${cod}</div>
+          </div>
+          <div style="font-size: 0.72rem; font-weight: 900; text-transform: uppercase;">${tit}</div>
+          <div style="font-size: 0.62rem; font-weight: 700;">${fec}</div>
+          <div style="font-size: 0.6rem; font-weight: 800; color: #0284c7;">MINUTAS · ${slot}</div>
+          <div style="border-top: 1px solid #000; width: 100%; padding-top: 4px; font-size: 0.55rem;">SGD CORAZA v8</div>
+        </div>
+      `;
+    } else {
+      // Foto 2: Carpeta Legajadora Azul (Contratos / Retirados)
+      stripsHtml += `
+        <div style="border: 2px dashed #000; width: 380px; height: 160px; padding: 8px; margin: 6px; float: left; display: flex; justify-content: space-between; page-break-inside: avoid; border-radius: 4px; background: #fff;">
+          <div style="flex: 1; border: 1.5px solid #000; padding: 6px; display: flex; flex-direction: column; justify-content: space-between; border-radius: 4px;">
+            <div style="font-size: 0.6rem; font-weight: 900; color: #0284c7;">${r.modulo.toUpperCase()} · ${slot}</div>
+            <div style="font-size: 0.82rem; font-weight: 900; text-transform: uppercase;">${tit}</div>
+            <div style="font-size: 0.65rem; font-weight: 700;">${nit ? 'NIT/CC: ' + nit : ''} ${num ? '| Contrato N° ' + num : ''}</div>
+            <div style="font-size: 0.62rem; font-weight: 700;">${fec}</div>
+          </div>
+          <div style="width: 70px; border: 2px solid #0284c7; background: #eff6ff; display: flex; flex-direction: column; align-items: center; justify-content: center; margin-left: 6px; border-radius: 4px;">
+            <div style="font-size: 0.5rem; font-weight: 800;">CÓDIGO</div>
+            <div style="font-size: 1.7rem; font-weight: 900; color: #0284c7;">${codClean}</div>
+          </div>
+        </div>
+      `;
+    }
+  });
+
+  const w = window.open('', '_blank');
+  w.document.write(`
+    <html>
+      <head>
+        <title>Impresión Ahorro de Papel - Coraza C.T.A.</title>
+        <style>
+          body { font-family: sans-serif; padding: 15px; margin: 0; background: #fff; color: #000; }
+          .grid { display: flex; flex-wrap: wrap; gap: 8px; }
+          @media print { body { padding: 0; } }
+        </style>
+      </head>
+      <body>
+        <div style="margin-bottom: 10px; border-bottom: 2px solid #000; padding-bottom: 4px;">
+          <h3 style="margin: 0; font-size: 1.1rem;">CORAZA SEGURIDAD C.T.A. — HOJA DE TIRAS PARA CARPETAS (AHORRO DE PAPEL)</h3>
+          <div style="font-size: 0.75rem; color: #555;">Imprima esta página, corte con tijeras por la línea punteada ✂️ y pegue en las carpetas.</div>
+        </div>
+        <div class="grid">
+          ${stripsHtml}
+        </div>
+      </body>
+    </html>
+  `);
+  w.document.close();
+
+  // Al imprimir, preguntar si desea vaciar la cola
+  setTimeout(() => {
+    w.focus();
+    w.print();
+    Swal.fire({
+      title: '¿Impresión finalizada?',
+      text: '¿Deseas vaciar la cola de impresión de tiras ahora?',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, vaciar cola',
+      cancelButtonText: 'Mantener en cola'
+    }).then((res) => {
+      if (res.isConfirmed) {
+        vaciarColaImpresion();
+      }
+    });
+  }, 500);
+}
+
+// Inicializar badge al cargar
+document.addEventListener('DOMContentLoaded', function() {
+  actualizarBadgeCola();
+});
 
 async function cargarWorkflows() {
   const listDiv = document.getElementById('listaWF');
