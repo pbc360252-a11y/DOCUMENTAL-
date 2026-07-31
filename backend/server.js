@@ -13,6 +13,14 @@ const JWT_SECRET = process.env.JWT_SECRET || 'sgd_coraza_secure_secret_key_2026'
 app.use(cors());
 app.use(express.json());
 
+// Forzar a los navegadores (Edge / Chrome) a no guardar caché antiguo
+app.use((req, res, next) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  next();
+});
+
 // Helper para Registrar Auditoría en SQL
 async function registrarAuditoria(usuario, modulo, accion, detalle, estado, respuesta = '') {
   try {

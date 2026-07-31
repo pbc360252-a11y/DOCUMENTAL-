@@ -1715,6 +1715,20 @@ document.addEventListener('DOMContentLoaded', function() {
   actualizarBadgeCola();
 });
 
+// Listener Global de Rescate para Impresión de Tiras y Rótulos (Fail-Safe)
+document.addEventListener('click', function(e) {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+
+  const text = (btn.textContent || '').toUpperCase();
+  if (text.includes('GENERAR TIRA PARA LOMO') || text.includes('IMPRIMIR SOLO ESTA ETIQUETA')) {
+    if (window.currentDetailRecord) {
+      e.preventDefault();
+      generarEtiquetaDesdeDetalle();
+    }
+  }
+});
+
 async function cargarWorkflows() {
   const listDiv = document.getElementById('listaWF');
   if (listDiv) {
