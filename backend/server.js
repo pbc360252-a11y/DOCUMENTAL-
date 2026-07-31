@@ -1114,7 +1114,7 @@ app.get('/api/analytics', autenticarToken, async (req, res) => {
       correspondencia: parseInt(resCorr.rows[0].count, 10),
       minutas: parseInt(resMin.rows[0].count, 10),
       contratos: parseInt(resCtr.rows[0].count, 10),
-      maxContrato: maxCtr.rows[0] && maxCtr.rows[0].max_num ? parseInt(maxCtr.rows[0].max_num, 10) : 394,
+      maxContrato: maxCtr.rows[0] && maxCtr.rows[0].max_num ? parseInt(maxCtr.rows[0].max_num, 10) : 399,
       prestamosActivos: parseInt(resPrestAct.rows[0].count, 10),
       prestamosDevueltos: parseInt(resPrestDev.rows[0].count, 10),
       asociadosRetirados: parseInt(resAsoc.rows[0].count, 10),

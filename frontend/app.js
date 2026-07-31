@@ -2334,8 +2334,8 @@ async function cargarDashboard() {
         </div>
         <div class="kpi-card" style="--kpi-color:var(--accent-violet);cursor:pointer" onclick="showSection('contratos')" title="Ver contratos vigentes">
           <span class="kpi-icon">📑</span>
-          <div class="kpi-value">${(res.maxContrato || 394).toLocaleString('es-CO')}</div>
-          <div class="kpi-label">Contratos (Secuencia #${res.maxContrato || 394})</div>
+          <div class="kpi-value">${(res.maxContrato || 399).toLocaleString('es-CO')}</div>
+          <div class="kpi-label">Contratos (Secuencia #${res.maxContrato || 399})</div>
         </div>
         <div class="kpi-card" style="--kpi-color:var(--accent-amber);cursor:pointer" onclick="showSection('prestamos')" title="Ver préstamos de documentos">
           <span class="kpi-icon">🔄</span>
