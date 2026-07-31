@@ -393,8 +393,8 @@ app.put('/api/personal-inactivo/:id/tipo', autenticarToken, async (req, res) => 
 
 app.get('/api/contratos/siguiente-codigo', autenticarToken, async (req, res) => {
   try {
-    const result = await db.query('SELECT MAX(codigo_numerico) as max_num FROM contratos');
-    const maxNum = (result.rows[0] && result.rows[0].max_num) ? parseInt(result.rows[0].max_num) : 394;
+    const result = await db.query('SELECT MAX(codigo_numerico) as max_num FROM contratos WHERE codigo_numerico < 600 OR fecha_registro >= \'2026-07-31\'');
+    const maxNum = (result.rows[0] && result.rows[0].max_num) ? parseInt(result.rows[0].max_num) : 398;
     const nextNum = maxNum + 1;
     const year = new Date().getFullYear();
     const codigoSugerido = `CTR-${nextNum}-${year}`;
@@ -405,12 +405,15 @@ app.get('/api/contratos/siguiente-codigo', autenticarToken, async (req, res) => 
 });
 
 app.post('/api/contratos', autenticarToken, async (req, res) => {
-  const { tipo, numero, parteA, parteB, fechaInicio, fechaFin, valor, objeto } = req.body;
+  const { tipo, numero, parteA, parteB, fechaInicio, fechaFin, valor, objeto, codigoNumerico } = req.body;
   try {
     const id = `CTR-${Date.now()}`;
-    const maxRes = await db.query('SELECT MAX(codigo_numerico) as max_num FROM contratos');
-    const maxNum = (maxRes.rows[0] && maxRes.rows[0].max_num) ? parseInt(maxRes.rows[0].max_num) : 394;
-    const nextVal = maxNum + 1;
+    let nextVal = codigoNumerico ? parseInt(codigoNumerico) : null;
+    if (!nextVal || isNaN(nextVal)) {
+      const maxRes = await db.query('SELECT MAX(codigo_numerico) as max_num FROM contratos WHERE codigo_numerico < 600 OR fecha_registro >= \'2026-07-31\'');
+      const maxNum = (maxRes.rows[0] && maxRes.rows[0].max_num) ? parseInt(maxRes.rows[0].max_num) : 398;
+      nextVal = maxNum + 1;
+    }
     const year = new Date().getFullYear();
     const numFinal = numero && numero.trim() ? numero.trim() : `CTR-${nextVal}-${year}`;
 
