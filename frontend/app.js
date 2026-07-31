@@ -2134,9 +2134,14 @@ function mostrarModalConfirmacion(titulo, codigo, mensaje, modulo = '', tituloDo
     if (modulo && codigo) {
       const cleanTitle = (tituloDoc || 'DOCUMENTO').replace(/'/g, "\\'");
       qrArea.innerHTML = `
-        <button class="btn btn-ghost w-full" style="padding:8px;font-size:0.82rem;font-weight:700;color:var(--accent-primary);border-color:var(--accent-primary)" onclick="generarEtiquetaQR('', '${modulo}', '${codigo}', '${cleanTitle}', '${slotFisico || 'A'}')">
-          🏷️ GENERAR ETIQUETA QR IMPRIMIBLE DE ESTE REGISTRO
-        </button>
+        <div style="display:flex;flex-direction:column;gap:6px;margin:8px 0">
+          <button class="btn btn-primary w-full" style="padding:9px;font-size:0.85rem;font-weight:800;background:linear-gradient(135deg,#0284c7,#0284c7)" onclick="generarEtiquetaQR('', '${modulo}', '${codigo}', '${cleanTitle}', '${slotFisico || 'A'}')">
+            🖨️ IMPRIMIR SOLO ESTA ETIQUETA AHORA
+          </button>
+          <div style="font-size:0.72rem;color:var(--text-secondary);text-align:center">
+            (También quedó guardada en la <strong>Cola PDF</strong> por si deseas imprimir en lote después)
+          </div>
+        </div>
       `;
     } else {
       qrArea.innerHTML = '';
