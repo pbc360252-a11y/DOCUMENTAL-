@@ -1094,8 +1094,8 @@ app.get('/api/analytics', autenticarToken, async (req, res) => {
   try {
     const resCorr = await db.query('SELECT COUNT(*) FROM correspondencia');
     const resMin = await db.query('SELECT COUNT(*) FROM minutas');
-    const resCtr = await db.query('SELECT COUNT(*) FROM contratos');
-    const maxCtr = await db.query('SELECT MAX(codigo_numerico) as max_num FROM contratos');
+    const resCtr = await db.query("SELECT COUNT(*) FROM contratos WHERE (hoja_origen IS NULL OR hoja_origen != 'CARPETAS PARA ESCANEAR')");
+    const maxCtr = await db.query("SELECT MAX(codigo_numerico) as max_num FROM contratos WHERE (hoja_origen IS NULL OR hoja_origen != 'CARPETAS PARA ESCANEAR')");
     const resPrestAct = await db.query("SELECT COUNT(*) FROM prestamos WHERE estado = 'ACTIVO' OR estado = 'VENCIDO'");
     const resPrestDev = await db.query("SELECT COUNT(*) FROM prestamos WHERE estado = 'DEVUELTO'");
     const resAsoc = await db.query('SELECT COUNT(*) FROM personal_inactivo');

@@ -2412,8 +2412,8 @@ async function cargarDashboard() {
 
             <div style="background:var(--bg-elevated);padding:12px;border-radius:var(--r-md);border:1px solid var(--border-subtle);cursor:pointer" onclick="showSection('contratos')">
               <div style="font-size:0.75rem;font-weight:700;color:var(--accent-violet);text-transform:uppercase">Contratos Vigentes</div>
-              <div style="font-size:1.3rem;font-weight:800;color:var(--text-primary);margin-top:2px">${(res.maxContrato || 394).toLocaleString('es-CO')}</div>
-              <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px">Último Consecutivo: #${res.maxContrato || 394}</div>
+              <div style="font-size:1.3rem;font-weight:800;color:var(--text-primary);margin-top:2px">${(res.maxContrato || 399).toLocaleString('es-CO')}</div>
+              <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px">Último Consecutivo: #${res.maxContrato || 399}</div>
             </div>
 
             <div style="background:var(--bg-elevated);padding:12px;border-radius:var(--r-md);border:1px solid var(--border-subtle);cursor:pointer" onclick="showSection('prestamos')">
