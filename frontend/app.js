@@ -1012,8 +1012,8 @@ async function mostrarDetalleRegistro(id, modulo) {
       }
 
       const qrBtn = `
-        <button class="btn btn-ghost w-full" style="margin-top:8px;padding:8px;font-weight:700;border-color:var(--accent-primary);color:var(--accent-primary)" onclick="generarEtiquetaQR('${d.id}', '${modulo}', '${d.codigo_numerico || d.numero_contrato || d.codigo_unico || d.id}', '${(d.parte_b || d.nombre_puesto || d.nombre_completo || d.asunto || '').replace(/'/g, "\\'")}', '${slotFisico}')">
-          🏷️ GENERAR ETIQUETA IMPRIMIBLE CON CÓDIGO QR
+        <button class="btn btn-ghost w-full" style="margin-top:8px;padding:8px;font-weight:700;border-color:var(--accent-primary);color:var(--accent-primary)" onclick="generarEtiquetaQR('${d.id}', '${modulo}', '${d.codigo_numerico || d.numero_contrato || d.codigo_unico || d.id}', '${(d.parte_b || d.nombre_puesto || d.nombre_completo || d.asunto || '').replace(/'/g, "\\'")}', '${slotFisico}', '${d.nit || d.cedula || ''}', '${d.numero_contrato || ''}', '${d.fecha_inicio ? String(d.fecha_inicio).substring(0,10) + ' -- ' + (d.fecha_fin ? String(d.fecha_fin).substring(0,10) : 'Indefinido') : ''}')">
+          🖨️ GENERAR TIRA PARA LOMO DE CARPETA (CORTAR Y PEGAR)
         </button>
       `;
 
@@ -1110,38 +1110,84 @@ document.addEventListener('keydown', function(e) {
 // 3. ESCÁNER CON CÁMARA O CÓDIGO DE BARRAS
 // ==========================================
 
-function generarEtiquetaQR(id, modulo, codigo, titulo, slotFisico) {
+function cambiarFormatoEtiqueta(formato) {
+  const vLomo = document.getElementById('vistaFormatoLomo');
+  const vFrente = document.getElementById('vistaFormatoFrente');
+  const btnL = document.getElementById('btnFormatoLomo');
+  const btnF = document.getElementById('btnFormatoFrente');
+
+  if (formato === 'LOMO') {
+    if (vLomo) vLomo.style.display = 'flex';
+    if (vFrente) vFrente.style.display = 'none';
+    if (btnL) btnL.className = 'btn btn-sm btn-primary';
+    if (btnF) btnF.className = 'btn btn-sm btn-ghost';
+  } else {
+    if (vLomo) vLomo.style.display = 'none';
+    if (vFrente) vFrente.style.display = 'block';
+    if (btnL) btnL.className = 'btn btn-sm btn-ghost';
+    if (btnF) btnF.className = 'btn btn-sm btn-primary';
+  }
+}
+
+function generarEtiquetaQR(id, modulo, codigo, titulo, slotFisico, nit = '', numContrato = '', fechas = '') {
   const modal = document.getElementById('modalEtiquetaQR');
   if (!modal) return;
 
+  const codFmt = codigo ? (codigo.startsWith('#') ? codigo : `#${codigo}`) : '#S/N';
+  const modFmt = modulo || 'CUSTODIA DOCUMENTAL';
+  const titFmt = titulo || 'CARPETA ARCHIVO FISICO';
+  const slotFmt = slotFisico ? (slotFisico.startsWith('VOXEL_') ? slotFisico.replace('VOXEL_', '') : slotFisico) : 'ESTANTE';
+
+  // Lomo Elementos
+  const lCod = document.getElementById('lomoCodigoNum');
+  const lTit = document.getElementById('lomoTituloCliente');
+  const lNit = document.getElementById('lomoNitDoc');
+  const lCont = document.getElementById('lomoContratoNum');
+  const lFec = document.getElementById('lomoFechas');
+  const lMod = document.getElementById('lomoModuloUbic');
+  const lBox = document.getElementById('lomoQrCanvas');
+
+  if (lCod) lCod.textContent = codFmt;
+  if (lTit) lTit.textContent = titFmt;
+  if (lNit) lNit.textContent = nit ? `NIT: ${nit}` : 'CORAZA SEGURIDAD CTA';
+  if (lCont) lCont.textContent = numContrato ? `Contrato N° ${numContrato}` : modFmt;
+  if (lFec) lFec.textContent = fechas || new Date().toISOString().substring(0, 10);
+  if (lMod) lMod.textContent = `${modFmt} · ESTANTE ${slotFmt}`;
+
+  // Frente Elementos
   const lblMod = document.getElementById('qrLabelModulo');
   const lblCod = document.getElementById('qrLabelCodigo');
   const lblTit = document.getElementById('qrLabelTitulo');
   const lblSub = document.getElementById('qrLabelSub');
-  const box = document.getElementById('qrCanvasBox');
+  const fBox = document.getElementById('qrCanvasBox');
 
-  if (lblMod) lblMod.textContent = `${modulo} · CORAZA C.T.A.`;
-  if (lblCod) lblCod.textContent = codigo.startsWith('#') ? codigo : `#${codigo}`;
-  if (lblTit) lblTit.textContent = titulo || 'CARPETA CUSTODIA DOCUMENTAL';
-  if (lblSub) lblSub.textContent = slotFisico ? `Estante ${slotFisico.replace('VOXEL_', '')} · Archivo Voxelsera` : 'Archivo Central Voxelsera';
+  if (lblMod) lblMod.textContent = `${modFmt} · CORAZA C.T.A.`;
+  if (lblCod) lblCod.textContent = codFmt;
+  if (lblTit) lblTit.textContent = titFmt;
+  if (lblSub) lblSub.textContent = `Estante ${slotFmt} · Archivo Voxelsera`;
 
-  if (box) {
-    box.innerHTML = '';
-    const payload = JSON.stringify({ id, modulo, codigo, slot: slotFisico, app: 'SGD_CORAZA_v8' });
-    if (typeof QRCode !== 'undefined') {
-      new QRCode(box, {
-        text: payload,
-        width: 120,
-        height: 120,
-        colorDark: "#000000",
-        colorLight: "#ffffff",
-        correctLevel: QRCode.CorrectLevel.H
-      });
-    } else {
-      box.innerHTML = `<div style="padding:15px;background:#f8fafc;color:#0f172a;font-weight:800;font-size:1.1rem;border:2px solid #000">${codigo}</div>`;
+  // Renderizar QR en ambos contenedores
+  const payload = JSON.stringify({ id, modulo: modFmt, codigo: codFmt, slot: slotFmt, app: 'SGD_CORAZA_v8' });
+  
+  [lBox, fBox].forEach(box => {
+    if (box) {
+      box.innerHTML = '';
+      if (typeof QRCode !== 'undefined') {
+        new QRCode(box, {
+          text: payload,
+          width: 90,
+          height: 90,
+          colorDark: "#000000",
+          colorLight: "#ffffff",
+          correctLevel: QRCode.CorrectLevel.M
+        });
+      } else {
+        box.innerHTML = `<div style="font-size:0.7rem;font-weight:800;border:1px solid #000;padding:4px">${codFmt}</div>`;
+      }
     }
-  }
+  });
 
+  cambiarFormatoEtiqueta('LOMO');
   modal.classList.add('show');
 }
 

@@ -765,28 +765,76 @@
   </div>
 </div>
 
-<!-- MODAL GENERADOR Y IMPRESIÓN DE ETIQUETA QR FÍSICA -->
+<!-- MODAL GENERADOR E IMPRESIÓN DE LOMO DE CARPETA Y ETIQUETA QR -->
 <div class="modal-ov" id="modalEtiquetaQR">
-  <div class="modal-box" style="max-width: 480px;">
+  <div class="modal-box" style="max-width: 540px; max-height: 90vh; display: flex; flex-direction: column;">
     <div class="modal-hdr" style="border-bottom: 1px solid var(--border-medium); padding-bottom: 10px;">
-      <span class="card-title" style="font-size: 1.1rem; color: var(--accent-primary);"><i class="fas fa-qrcode"></i> Etiqueta Adhesiva QR para Carpeta Física</span>
+      <span class="card-title" style="font-size: 1.1rem; color: var(--accent-primary);"><i class="fas fa-print"></i> Etiqueta e Identificador de Lomo de Carpeta</span>
       <button class="topbar-btn" onclick="document.getElementById('modalEtiquetaQR').classList.remove('show')"><i class="fas fa-times"></i></button>
     </div>
-    <div style="padding: 20px; text-align: center;" id="etiquetaPrintArea">
-      <div style="border: 2px dashed var(--accent-primary); padding: 18px; border-radius: 12px; background: #ffffff; color: #000000; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
-        <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 8px;">
-          <img src="logo.png" style="height: 28px; object-fit: contain;" alt="Coraza Logo">
-          <div style="font-weight: 800; font-size: 0.85rem; color: #000; text-transform: uppercase;">CORAZA SEGURIDAD C.T.A.</div>
+
+    <!-- Pestañas de Formato -->
+    <div style="display: flex; gap: 8px; margin: 12px 0 6px 0;">
+      <button class="btn btn-sm btn-primary" id="btnFormatoLomo" onclick="cambiarFormatoEtiqueta('LOMO')"><i class="fas fa-grip-lines-vertical"></i> TIRA DE LOMO FÍSICO (Cortar y Pegar)</button>
+      <button class="btn btn-sm btn-ghost" id="btnFormatoFrente" onclick="cambiarFormatoEtiqueta('FRENTE')"><i class="fas fa-qrcode"></i> ETIQUETA QR CUADRADA</button>
+    </div>
+
+    <div style="padding: 14px 0; overflow-y: auto; flex: 1; display: flex; justify-content: center; align-items: flex-start; min-height: 0;" id="etiquetaPrintArea">
+      
+      <!-- FORMATO 1: TIRA VERTICAL PARA LOMO DE CARPETA (EXACTAMENTE COMO LA FOTO DEL ESTANTE) -->
+      <div id="vistaFormatoLomo" style="border: 2px dashed #0284c7; padding: 10px; background: #ffffff; color: #000000; width: 140px; min-height: 480px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); display: flex; flex-direction: column; align-items: center; justify-content: space-between; border-radius: 6px; position: relative;">
+        <div style="font-size: 0.62rem; color: #64748b; font-weight: 700; position: absolute; top: -18px; left: 0; right: 0; text-align: center; text-transform: uppercase;">✂️ Línea de corte para lomo</div>
+
+        <!-- CÓDIGO GIGANTE SUPERIOR (Ej: 362) -->
+        <div style="width: 100%; text-align: center; border-bottom: 3px solid #0f172a; padding-bottom: 6px; margin-bottom: 8px;">
+          <div style="font-size: 0.58rem; font-weight: 800; color: #64748b; text-transform: uppercase;" id="lomoHeaderEmpresa">CORAZA C.T.A.</div>
+          <div style="font-size: 2.2rem; font-weight: 900; color: #0284c7; line-height: 1;" id="lomoCodigoNum">#362</div>
         </div>
-        <div style="font-size: 0.72rem; font-weight: 700; color: #475569; letter-spacing: 0.5px; margin-bottom: 12px;" id="qrLabelModulo">CUSTODIA DOCUMENTAL FISICA</div>
-        <div id="qrCanvasBox" style="display: flex; justify-content: center; margin: 10px 0;"></div>
-        <div style="font-size: 1.4rem; font-weight: 900; color: #0284c7; margin-top: 8px;" id="qrLabelCodigo">#362</div>
+
+        <!-- TEXTO VERTICAL / APILADO EN EL CUERPO DEL LOMO -->
+        <div style="flex: 1; width: 100%; display: flex; flex-direction: column; justify-content: space-around; text-align: center; padding: 4px 0; gap: 8px;">
+          <div style="font-size: 0.82rem; font-weight: 900; color: #0f172a; line-height: 1.25; word-break: break-word; text-transform: uppercase;" id="lomoTituloCliente">
+            CONJUNTO RESIDENCIAL TIERRA GRATA CUMBRES P.H.
+          </div>
+          
+          <div style="border-top: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; padding: 4px 0;">
+            <div style="font-size: 0.68rem; font-weight: 800; color: #334155;" id="lomoNitDoc">NIT: 900458819-6</div>
+            <div style="font-size: 0.65rem; font-weight: 700; color: #475569;" id="lomoContratoNum">Contrato N° 25</div>
+          </div>
+
+          <div style="font-size: 0.68rem; font-weight: 700; color: #1e293b; background: #f1f5f9; padding: 3px; border-radius: 4px;" id="lomoFechas">
+            01/12/2011 -- 01/12/2024
+          </div>
+
+          <div style="font-size: 0.65rem; font-weight: 800; color: #0284c7; text-transform: uppercase;" id="lomoModuloUbic">
+            CONTRATOS · ESTANTE C
+          </div>
+        </div>
+
+        <!-- CÓDIGO QR EN LA BASE DEL LOMO -->
+        <div style="width: 100%; display: flex; flex-direction: column; align-items: center; border-top: 2px solid #0f172a; padding-top: 6px; margin-top: 6px;">
+          <div id="lomoQrCanvas" style="display: flex; justify-content: center;"></div>
+          <div style="font-size: 0.55rem; font-weight: 800; color: #64748b; margin-top: 4px;">SGD CORAZA v8</div>
+        </div>
+      </div>
+
+      <!-- FORMATO 2: ETIQUETA QR CUADRADA PARA PORTADA -->
+      <div id="vistaFormatoFrente" style="display: none; border: 2px dashed #0284c7; padding: 18px; border-radius: 12px; background: #ffffff; color: #000000; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); max-width: 320px;">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 8px;">
+          <img src="logo.png" style="height: 26px; object-fit: contain;" alt="Coraza Logo">
+          <div style="font-weight: 800; font-size: 0.8rem; color: #000; text-transform: uppercase;">CORAZA SEGURIDAD C.T.A.</div>
+        </div>
+        <div style="font-size: 0.7rem; font-weight: 700; color: #475569; letter-spacing: 0.5px; margin-bottom: 8px;" id="qrLabelModulo">CUSTODIA DOCUMENTAL FISICA</div>
+        <div id="qrCanvasBox" style="display: flex; justify-content: center; margin: 8px 0;"></div>
+        <div style="font-size: 1.5rem; font-weight: 900; color: #0284c7; margin-top: 4px;" id="qrLabelCodigo">#362</div>
         <div style="font-size: 0.85rem; font-weight: 800; color: #0f172a; margin-top: 2px;" id="qrLabelTitulo">CONJUNTO RESIDENCIAL TIERRA GRATA CUMBRES P.H.</div>
         <div style="font-size: 0.75rem; font-weight: 700; color: #64748b; margin-top: 2px;" id="qrLabelSub">Estante C · Voxelsera</div>
       </div>
+
     </div>
-    <div style="display: flex; gap: 10px; padding: 10px 20px 20px 20px;">
-      <button class="btn btn-primary" style="flex: 1; justify-content: center;" onclick="imprimirEtiquetaQR()"><i class="fas fa-print"></i> IMPRIMIR ETIQUETA</button>
+
+    <div style="display: flex; gap: 10px; border-top: 1px solid var(--border-medium); padding-top: 12px; margin-top: 6px;">
+      <button class="btn btn-primary" style="flex: 1; justify-content: center;" onclick="imprimirEtiquetaQR()"><i class="fas fa-print"></i> IMPRIMIR TIRA PARA LOMO (CORTAR Y PEGAR)</button>
       <button class="btn btn-ghost" onclick="document.getElementById('modalEtiquetaQR').classList.remove('show')">CERRAR</button>
     </div>
   </div>
