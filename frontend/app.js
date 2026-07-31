@@ -1138,9 +1138,13 @@ async function mostrarDetalleRegistro(id, modulo) {
 }
 
 function imprimirDirectoDesdeDetalle() {
-  const content = document.getElementById('directMarquillaContent');
-  if (!content) return;
-  imprimirAreaElemento(content.innerHTML, 'Rótulo de Carpeta - Coraza C.T.A.');
+  if (window.currentDetailRecord) {
+    _construirEImprimirRotulo(window.currentDetailRecord, window.currentDetailModulo || 'CONTRATOS');
+  } else {
+    const content = document.getElementById('directMarquillaContent');
+    if (!content) return;
+    imprimirAreaElemento(content.innerHTML, 'Rótulo de Carpeta - Coraza C.T.A.');
+  }
 }
 
 function iluminarUbicacionFisica(slotId) {
@@ -1351,11 +1355,25 @@ function imprimirAreaElemento(htmlContent, tituloDoc) {
       <head>
         <title>${tituloDoc || 'Impresión Coraza C.T.A.'}</title>
         <style>
-          * { box-sizing: border-box; }
-          body { font-family: system-ui, -apple-system, sans-serif; padding: 15px; background: #ffffff; color: #000000; display: flex; justify-content: center; align-items: center; margin: 0; }
+          * {
+            box-sizing: border-box;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+          }
+          body {
+            font-family: system-ui, -apple-system, sans-serif;
+            padding: 20px;
+            background: #ffffff;
+            color: #000000;
+            margin: 0;
+            display: flex;
+            justify-content: flex-start;
+            align-items: flex-start;
+          }
           @media print {
             body { padding: 0; margin: 0; }
-            @page { margin: 8mm; }
+            @page { margin: 10mm; }
           }
         </style>
       </head>
