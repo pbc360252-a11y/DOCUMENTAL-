@@ -369,6 +369,7 @@
         <div class="flex-row">
           <input type="text" id="filtroContratos" class="inp" placeholder="Buscar por contratista, número o código..." onkeyup="filtrarContratos()" style="width:260px">
           <button class="btn btn-sm btn-ghost" style="color:var(--accent-green);border-color:var(--accent-green);background:rgba(16,185,129,.05)" onclick="exportarTablaACSV('tablaContratos', 'Contratos_Coraza')"><i class="fas fa-file-excel"></i> Excel</button>
+          <button class="btn btn-sm btn-ghost" style="color:var(--accent-primary);border-color:var(--accent-primary);background:rgba(2,132,199,.05)" onclick="imprimirLoteTiras('contratos')" title="Imprimir hoja PDF con todas las tiras de lomo de contratos"><i class="fas fa-print"></i> Tiras PDF</button>
           <button class="btn btn-sm btn-primary" onclick="cargarContratos()"><i class="fas fa-sync-alt"></i> Actualizar</button>
         </div>
       </div>

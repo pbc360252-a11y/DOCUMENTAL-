@@ -1246,6 +1246,95 @@ function imprimirEtiquetaQR() {
   }, 400);
 }
 
+function imprimirLoteTiras(modulo) {
+  let items = [];
+  const esMinuta = (modulo === 'minutas');
+
+  if (modulo === 'contratos') {
+    items = window.todosLosContratos || [];
+  } else if (modulo === 'minutas') {
+    items = window.todasLasMinutas || [];
+  } else if (modulo === 'personal') {
+    items = window.todoElPersonal || [];
+  }
+
+  if (!items || items.length === 0) {
+    Swal.fire('Atención', 'No hay registros cargados para generar el lote de tiras.', 'warning');
+    return;
+  }
+
+  const lote = items.slice(0, 30);
+  let stripsHtml = '';
+
+  lote.forEach(r => {
+    const codClean = r.codigo_numerico ? String(r.codigo_numerico) : (r.codigo || r.id || 'S/N').replace('CTR-','');
+    const cod = `#${codClean}`;
+    const tit = (r.parte_b || r.nombre_puesto || r.nombre || r.asunto || 'REGISTRO').toUpperCase();
+    const nit = r.nit || r.cedula || '';
+    const num = r.numero_contrato || '';
+    const fec = r.fecha_inicio ? `${String(r.fecha_inicio).substring(0,10)} -- ${r.fecha_fin ? String(r.fecha_fin).substring(0,10) : ''}` : '';
+    const slot = r.voxelsera || r.ubicacion || 'ESTANTE C';
+
+    if (esMinuta) {
+      stripsHtml += `
+        <div style="border: 2px dashed #000; width: 130px; height: 400px; padding: 8px; margin: 6px; float: left; display: flex; flex-direction: column; justify-content: space-between; align-items: center; text-align: center; page-break-inside: avoid; border-radius: 4px; background: #fff;">
+          <div style="width: 100%; border-bottom: 2px solid #000; padding-bottom: 4px;">
+            <div style="font-size: 0.55rem; font-weight: 800;">CORAZA C.T.A.</div>
+            <div style="font-size: 1.8rem; font-weight: 900; color: #0284c7;">${cod}</div>
+          </div>
+          <div style="font-size: 0.72rem; font-weight: 900; text-transform: uppercase;">${tit}</div>
+          <div style="font-size: 0.62rem; font-weight: 700;">${fec}</div>
+          <div style="font-size: 0.6rem; font-weight: 800; color: #0284c7;">MINUTAS · ${slot}</div>
+          <div style="border-top: 1px solid #000; width: 100%; padding-top: 4px; font-size: 0.55rem;">SGD CORAZA v8</div>
+        </div>
+      `;
+    } else {
+      stripsHtml += `
+        <div style="border: 2px dashed #000; width: 380px; height: 160px; padding: 8px; margin: 6px; float: left; display: flex; justify-content: space-between; page-break-inside: avoid; border-radius: 4px; background: #fff;">
+          <div style="flex: 1; border: 1.5px solid #000; padding: 6px; display: flex; flex-direction: column; justify-content: space-between; border-radius: 4px;">
+            <div style="font-size: 0.6rem; font-weight: 900; color: #0284c7;">${modulo.toUpperCase()} · ${slot}</div>
+            <div style="font-size: 0.82rem; font-weight: 900; text-transform: uppercase;">${tit}</div>
+            <div style="font-size: 0.65rem; font-weight: 700;">${nit ? 'NIT/CC: ' + nit : ''} ${num ? '| Contrato N° ' + num : ''}</div>
+            <div style="font-size: 0.62rem; font-weight: 700;">${fec}</div>
+          </div>
+          <div style="width: 70px; border: 2px solid #0284c7; background: #eff6ff; display: flex; flex-direction: column; align-items: center; justify-content: center; margin-left: 6px; border-radius: 4px;">
+            <div style="font-size: 0.5rem; font-weight: 800;">CÓDIGO</div>
+            <div style="font-size: 1.7rem; font-weight: 900; color: #0284c7;">${codClean}</div>
+          </div>
+        </div>
+      `;
+    }
+  });
+
+  const w = window.open('', '_blank');
+  w.document.write(`
+    <html>
+      <head>
+        <title>Impresión de Lote de Tiras - Coraza C.T.A.</title>
+        <style>
+          body { font-family: sans-serif; padding: 15px; margin: 0; background: #fff; color: #000; }
+          .grid { display: flex; flex-wrap: wrap; gap: 8px; }
+          @media print { body { padding: 0; } }
+        </style>
+      </head>
+      <body>
+        <div style="margin-bottom: 10px; border-bottom: 2px solid #000; padding-bottom: 4px;">
+          <h3 style="margin: 0; font-size: 1.1rem;">CORAZA SEGURIDAD C.T.A. — LOTE DE TIRAS PARA CARPETAS FÍSICAS</h3>
+          <div style="font-size: 0.75rem; color: #555;">Imprima esta página, corte con tijeras por la línea punteada ✂️ y pegue en las carpetas.</div>
+        </div>
+        <div class="grid">
+          ${stripsHtml}
+        </div>
+      </body>
+    </html>
+  `);
+  w.document.close();
+  setTimeout(() => {
+    w.focus();
+    w.print();
+  }, 500);
+}
+
 function abrirVisorPDF(url, titulo) {
   const modal = document.getElementById('modalVisorPDF');
   const frame = document.getElementById('pdfFrame');
