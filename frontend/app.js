@@ -391,7 +391,7 @@ async function registrarMinuta(e) {
   try {
     const res = await apiCall('/api/minutas', 'POST', data);
     if (res.success) {
-      mostrarModalConfirmacion('✅ MINUTA REGISTRADA', res.codigoUnico, 'Puesto y minuta enlazados respetando el consecutivo oficial.');
+      mostrarModalConfirmacion('✅ MINUTA REGISTRADA', res.codigoUnico, 'Puesto y minuta enlazados respetando el consecutivo oficial.', '📋 MINUTAS', data.nombrePuesto, data.voxelsera || 'A');
       document.getElementById('nombrePuesto').value = '';
       document.getElementById('observacionesMinuta').value = '';
     }
@@ -1767,11 +1767,26 @@ async function cargarDashboard() {
   }
 }
 
-function mostrarModalConfirmacion(titulo, codigo, mensaje) {
+function mostrarModalConfirmacion(titulo, codigo, mensaje, modulo = '', tituloDoc = '', slotFisico = '') {
   document.getElementById('mIcon').textContent = '✅';
   document.getElementById('mTitle').textContent = titulo;
   document.getElementById('mCode').textContent = codigo;
   document.getElementById('mMsg').textContent = mensaje;
+
+  const qrArea = document.getElementById('mQrAction');
+  if (qrArea) {
+    if (modulo && codigo) {
+      const cleanTitle = (tituloDoc || 'DOCUMENTO').replace(/'/g, "\\'");
+      qrArea.innerHTML = `
+        <button class="btn btn-ghost w-full" style="padding:8px;font-size:0.82rem;font-weight:700;color:var(--accent-primary);border-color:var(--accent-primary)" onclick="generarEtiquetaQR('', '${modulo}', '${codigo}', '${cleanTitle}', '${slotFisico || 'A'}')">
+          🏷️ GENERAR ETIQUETA QR IMPRIMIBLE DE ESTE REGISTRO
+        </button>
+      `;
+    } else {
+      qrArea.innerHTML = '';
+    }
+  }
+
   document.getElementById('modalConfirm').classList.add('show');
 }
 
