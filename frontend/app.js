@@ -1242,94 +1242,22 @@ function cambiarFormatoEtiqueta(formato) {
 }
 
 function generarEtiquetaQR(id, modulo, codigo, titulo, slotFisico, nit = '', numContrato = '', fechas = '', obsEstado = '') {
-  // Cerrar otros modales abiertos para que el rótulo quede visible al frente
-  const mDet = document.getElementById('modalDetalleRegistro');
-  if (mDet) mDet.classList.remove('show');
-  const mConf = document.getElementById('modalConfirmacion');
-  if (mConf) mConf.classList.remove('show');
-
-  const modal = document.getElementById('modalEtiquetaQR');
-  if (!modal) return;
-
-  const codClean = codigo ? String(codigo).replace(/^#/, '') : 'S/N';
-  const codFmt = `#${codClean}`;
-  const modFmt = modulo || 'CUSTODIA DOCUMENTAL';
-  const titFmt = titulo || 'CARPETA ARCHIVO FISICO';
-  const slotFmt = slotFisico ? (slotFisico.startsWith('VOXEL_') ? slotFisico.replace('VOXEL_', '') : slotFisico) : 'ESTANTE';
-
-  // 1. CARPETA LEGAJADORA AZUL (FOTO 2)
-  const legCod = document.getElementById('legCodigoNum');
-  const legTit = document.getElementById('legTituloCliente');
-  const legNit = document.getElementById('legNitDoc');
-  const legFec = document.getElementById('legFechas');
-  const legEst = document.getElementById('legEstadoObs');
-  const legMod = document.getElementById('legModuloUbic');
-  const legBox = document.getElementById('legQrCanvas');
-
-  if (legCod) legCod.textContent = codClean;
-  if (legTit) legTit.textContent = titFmt;
-  if (legNit) legNit.textContent = nit ? `NIT/CC: ${nit}` : 'CORAZA SEGURIDAD CTA';
-  if (legFec) legFec.textContent = fechas || new Date().toISOString().substring(0, 10);
-  if (legEst) legEst.textContent = obsEstado || (numContrato ? `Contrato N° ${numContrato}` : 'Archivo Activo');
-  if (legMod) legMod.textContent = `${modFmt} · ESTANTE ${slotFmt}`;
-
-  // 2. LIBRO DE MINUTAS (FOTO 1)
-  const lCod = document.getElementById('lomoCodigoNum');
-  const lTit = document.getElementById('lomoTituloCliente');
-  const lNit = document.getElementById('lomoNitDoc');
-  const lCont = document.getElementById('lomoContratoNum');
-  const lFec = document.getElementById('lomoFechas');
-  const lMod = document.getElementById('lomoModuloUbic');
-  const lBox = document.getElementById('lomoQrCanvas');
-
-  if (lCod) lCod.textContent = codFmt;
-  if (lTit) lTit.textContent = titFmt;
-  if (lNit) lNit.textContent = nit ? `NIT/CC: ${nit}` : 'CORAZA SEGURIDAD CTA';
-  if (lCont) lCont.textContent = numContrato ? `Contrato N° ${numContrato}` : modFmt;
-  if (lFec) lFec.textContent = fechas || new Date().toISOString().substring(0, 10);
-  if (lMod) lMod.textContent = `${modFmt} · ESTANTE ${slotFmt}`;
-
-  // 3. ETIQUETA QR FRENTE
-  const lblMod = document.getElementById('qrLabelModulo');
-  const lblCod = document.getElementById('qrLabelCodigo');
-  const lblTit = document.getElementById('qrLabelTitulo');
-  const lblSub = document.getElementById('qrLabelSub');
-  const fBox = document.getElementById('qrCanvasBox');
-
-  if (lblMod) lblMod.textContent = `${modFmt} · CORAZA C.T.A.`;
-  if (lblCod) lblCod.textContent = codFmt;
-  if (lblTit) lblTit.textContent = titFmt;
-  if (lblSub) lblSub.textContent = `Estante ${slotFmt} · Archivo Voxelsera`;
-
-  // Renderizar QR en todos los contenedores
-  const payload = JSON.stringify({ id, modulo: modFmt, codigo: codFmt, slot: slotFmt, app: 'SGD_CORAZA_v8' });
-  
-  [legBox, lBox, fBox].forEach(box => {
-    if (box) {
-      box.innerHTML = '';
-      if (typeof QRCode !== 'undefined') {
-        new QRCode(box, {
-          text: payload,
-          width: 75,
-          height: 75,
-          colorDark: "#000000",
-          colorLight: "#ffffff",
-          correctLevel: QRCode.CorrectLevel.M
-        });
-      } else {
-        box.innerHTML = `<div style="font-size:0.65rem;font-weight:800;border:1px solid #000;padding:2px">${codClean}</div>`;
-      }
-    }
-  });
-
-  // Si es Minuta abre Foto 1 (Lomo Libro), si es Contrato/Retirados abre Foto 2 (Legajadora Azul)
-  if (modFmt.toLowerCase().includes('minuta')) {
-    cambiarFormatoEtiqueta('LOMO');
-  } else {
-    cambiarFormatoEtiqueta('LEGAJADORA');
-  }
-
-  modal.classList.add('show');
+  const d = {
+    id: id || codigo,
+    codigo_numerico: codigo,
+    numero_contrato: numContrato,
+    parte_b: titulo,
+    nombre_puesto: titulo,
+    nombre_completo: titulo,
+    asunto: titulo,
+    nombre: titulo,
+    nit,
+    cedula: nit,
+    voxelsera: slotFisico,
+    fecha_inicio: fechas ? fechas.split('--')[0] : '',
+    fecha_fin: fechas ? fechas.split('--')[1] : ''
+  };
+  _construirEImprimirRotulo(d, modulo);
 }
 
 function imprimirAreaElemento(htmlContent, tituloDoc) {
@@ -2466,7 +2394,7 @@ function mostrarModalConfirmacion(titulo, codigo, mensaje, modulo = '', tituloDo
       const cleanTitle = (tituloDoc || 'DOCUMENTO').replace(/'/g, "\\'");
       qrArea.innerHTML = `
         <div style="display:flex;flex-direction:column;gap:6px;margin:8px 0">
-          <button class="btn btn-primary w-full" style="padding:9px;font-size:0.85rem;font-weight:800;background:linear-gradient(135deg,#0284c7,#0284c7)" onclick="generarEtiquetaQR('', '${modulo}', '${codigo}', '${cleanTitle}', '${slotFisico || 'A'}')">
+          <button class="btn btn-primary w-full" style="padding:9px;font-size:0.85rem;font-weight:800;background:linear-gradient(135deg,#0284c7,#0284c7)" onclick="imprimirRotuloDirecto('${modulo}', '${codigo}')">
             🖨️ IMPRIMIR SOLO ESTA ETIQUETA AHORA
           </button>
           <div style="font-size:0.72rem;color:var(--text-secondary);text-align:center">
