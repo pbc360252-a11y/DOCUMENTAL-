@@ -340,20 +340,25 @@ body::after {
   position: sticky;
   top: 0;
   z-index: 50;
-  background: rgba(6,10,20,.9);
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%) !important;
   backdrop-filter: blur(20px);
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 2px solid var(--border-medium);
   padding: 0 28px;
-  height: 60px;
+  height: 64px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.25);
 }
 
 .page-title {
   font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 1.1rem;
+  font-weight: 800 !important;
+  font-size: 1.3rem !important;
+  color: #ffffff !important;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.4);
 }
 
 .topbar-right {

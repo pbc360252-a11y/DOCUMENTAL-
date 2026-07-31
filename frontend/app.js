@@ -1692,7 +1692,22 @@ function showSection(secId) {
   if (target) {
     target.classList.add('active');
     const pTitle = document.getElementById('pageTitle');
-    if (pTitle) pTitle.textContent = secId.toUpperCase();
+    if (pTitle) {
+      const titles = {
+        'dashboard': '📌 Panel de Control Operativo',
+        'minutas': '📋 Minutas de Servicio',
+        'correspondencia': '📧 Correspondencia y Radicados TRD',
+        'personal': '🤝 Asociados Retirados (Personal Inactivo)',
+        'contratos': '📑 Gestión Oficial de Contratos',
+        'biblioteca': '📚 Biblioteca Virtual de Documentos',
+        'prestamos': '🔄 Préstamos de Documentos',
+        'busqueda': '🔍 Buscador Universal Omnipresente',
+        'informes': '📊 Informes de Auditoría AGN',
+        'usuarios': '👥 Gestión de Usuarios',
+        'ajustes': '⚙️ Ajustes del Sistema'
+      };
+      pTitle.innerHTML = titles[secId] || secId.toUpperCase();
+    }
   }
 
   // Resaltar ícono en barra lateral
