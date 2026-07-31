@@ -980,26 +980,29 @@ app.get('/api/registro-detalle/:modulo/:id', autenticarToken, async (req, res) =
   const { modulo, id } = req.params;
   try {
     let queryStr = '';
-    const mNorm = modulo.toUpperCase();
+    const mNorm = (modulo || '').toUpperCase();
+    const cleanId = id ? id.replace(/^#/, '').trim() : '';
 
     if (mNorm.includes('MINUTA')) {
-      queryStr = 'SELECT * FROM minutas WHERE id = $1';
+      queryStr = 'SELECT * FROM minutas WHERE id = $1 OR codigo_unico = $1 OR codigo_numerico::text = $2';
     } else if (mNorm.includes('CORRESPONDENCIA')) {
-      queryStr = 'SELECT * FROM correspondencia WHERE id = $1';
+      queryStr = 'SELECT * FROM correspondencia WHERE id = $1 OR codigo_documento = $1';
     } else if (mNorm.includes('CONTRATO')) {
-      queryStr = 'SELECT * FROM contratos WHERE id = $1';
+      queryStr = 'SELECT * FROM contratos WHERE id = $1 OR codigo_numerico::text = $2 OR numero_contrato = $1';
     } else if (mNorm.includes('ASOCIADO') || mNorm.includes('PERSONAL')) {
-      queryStr = 'SELECT * FROM personal_inactivo WHERE id = $1';
+      queryStr = 'SELECT * FROM personal_inactivo WHERE id = $1 OR cedula = $1 OR codigo_numerico::text = $2';
     } else if (mNorm.includes('PRESTAMO')) {
       queryStr = 'SELECT * FROM prestamos WHERE id = $1';
     } else if (mNorm.includes('BIBLIOTECA')) {
       queryStr = 'SELECT * FROM biblioteca WHERE id = $1';
     } else {
-      return res.status(400).json({ success: false, message: 'Módulo no reconocido' });
+      queryStr = 'SELECT * FROM contratos WHERE id = $1 OR codigo_numerico::text = $2';
     }
 
-    const result = await db.query(queryStr, [id]);
+    const result = await db.query(queryStr, [id, cleanId]);
     if (result.rows.length === 0) {
+      const fbCtr = await db.query('SELECT * FROM contratos WHERE id = $1 OR codigo_numerico::text = $2', [id, cleanId]);
+      if (fbCtr.rows.length > 0) return res.json({ success: true, detalle: fbCtr.rows[0] });
       return res.status(404).json({ success: false, message: 'Registro no encontrado' });
     }
 
