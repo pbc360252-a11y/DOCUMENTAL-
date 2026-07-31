@@ -1050,17 +1050,38 @@ async function mostrarDetalleRegistro(id, modulo) {
         </button>
       `;
 
-      const qrBtn = `
-        <button class="btn btn-ghost w-full" style="margin-top:6px;padding:8px;font-weight:700;border-color:var(--accent-primary);color:var(--accent-primary)" onclick="generarEtiquetaDesdeDetalle()">
-          🖨️ GENERAR TIRA PARA LOMO DE CARPETA (CORTAR Y PEGAR)
-        </button>
-      `;
+      const codClean = d.codigo_numerico || d.numero_contrato || d.codigo_unico || d.id;
+      const titClean = (d.parte_b || d.nombre_puesto || d.nombre_completo || d.asunto || d.nombre || 'CARPETA ARCHIVO').toUpperCase();
+      const nitClean = d.nit || d.cedula || 'N/A';
+      const fecClean = d.fecha_inicio ? `${String(d.fecha_inicio).substring(0,10)} -- ${d.fecha_fin ? String(d.fecha_fin).substring(0,10) : 'Vigente'}` : 'N/A';
 
-      const glowBtn = slotFisico ? `
-        <button class="btn btn-primary w-full" style="margin-top:10px;padding:10px;background:linear-gradient(135deg,#38bdf8,#f59e0b);border:none;color:#fff;font-weight:800;letter-spacing:0.5px;box-shadow:0 0 15px rgba(245,158,11,0.4)" onclick="iluminarUbicacionFisica('${slotFisico}')">
-          ✨ ILUMINAR EN MAPA DE ARCHIVO FÍSICO (${slotFisico})
-        </button>
-      ` : '';
+      const directMarquillaHtml = `
+        <div style="margin-top:20px;padding:16px;background:#ffffff;color:#000000;border:2px dashed #0284c7;border-radius:12px;box-shadow:0 8px 25px rgba(0,0,0,0.15);text-align:center" id="directMarquillaContainer">
+          <div style="font-size:0.75rem;font-weight:900;color:#0284c7;margin-bottom:10px;text-transform:uppercase">
+            ✂️ RÓTULO FÍSICO Y MARQUILLA DE ESTA CARPETA (LISTO PARA IMPRIMIR)
+          </div>
+          
+          <div id="directMarquillaContent" style="display:inline-block;padding:14px;border:2px solid #0f172a;border-radius:6px;background:#ffffff;width:100%;max-width:440px;text-align:left">
+            <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #0f172a;padding-bottom:4px;margin-bottom:6px;gap:12px">
+              <span style="font-size:0.7rem;font-weight:900;color:#0284c7">${modulo.toUpperCase()} · ESTANTE ${slotFisico || 'C'}</span>
+              <span style="font-size:0.68rem;font-weight:800;color:#475569">NIT/CC: ${nitClean}</span>
+            </div>
+            <div style="font-size:1.05rem;font-weight:900;color:#0f172a;margin-bottom:8px;line-height:1.2;text-transform:uppercase">
+              ${titClean}
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid #cbd5e1;padding-top:6px;gap:10px">
+              <span style="font-size:0.75rem;font-weight:700;color:#334155">${fecClean}</span>
+              <span style="font-size:1.6rem;font-weight:900;color:#0284c7">#${codClean}</span>
+            </div>
+          </div>
+
+          <div style="margin-top:14px">
+            <button class="btn btn-primary w-full" style="padding:12px;font-size:0.95rem;font-weight:900;background:linear-gradient(135deg,#0284c7,#16a34a);border:none;box-shadow:0 4px 15px rgba(2,132,199,0.4);color:#fff" onclick="imprimirDirectoDesdeDetalle()">
+              🖨️ IMPRIMIR ESTE RÓTULO AHORA (IMPRESORA / PDF)
+            </button>
+          </div>
+        </div>
+      `;
 
       body.innerHTML = `
         <div style="background:var(--bg-elevated);padding:14px;border-radius:var(--r-md);border:1px solid var(--border-medium);margin-bottom:14px">
@@ -1069,9 +1090,9 @@ async function mostrarDetalleRegistro(id, modulo) {
           ${glowBtn}
           ${fichaBtn}
           ${pdfAttachBtn}
-          ${qrBtn}
         </div>
         ${rowsHtml}
+        ${directMarquillaHtml}
       `;
     } else {
       body.innerHTML = '<div class="alert alert-danger">No se pudo obtener el detalle del registro.</div>';
@@ -1079,6 +1100,12 @@ async function mostrarDetalleRegistro(id, modulo) {
   } catch(e) {
     body.innerHTML = '<div class="alert alert-danger">Error de conexión al obtener los detalles del registro.</div>';
   }
+}
+
+function imprimirDirectoDesdeDetalle() {
+  const content = document.getElementById('directMarquillaContent');
+  if (!content) return;
+  imprimirAreaElemento(content.innerHTML, 'Rótulo de Carpeta - Coraza C.T.A.');
 }
 
 function iluminarUbicacionFisica(slotId) {
